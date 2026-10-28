@@ -8,7 +8,8 @@
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; overflow:hidden; background:#04050a; color:#e8e8ec;
     font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
-  #scene { position:fixed; inset:0; }
+  #sceneWorld { position:fixed; inset:0; }
+  #worldCanvas { width:100%; height:100%; display:block; }
   .glass { background:rgba(13,14,22,.82); border:1px solid rgba(255,255,255,.09); border-radius:14px;
     backdrop-filter: blur(10px); box-shadow:0 8px 32px rgba(0,0,0,.45); }
   #hud-top { position:fixed; top:12px; left:14px; z-index:5; pointer-events:none; }
@@ -72,12 +73,14 @@
   .seg button.on { border-color:#ffd34d; color:#ffd34d; background:#262213; }
   #loadTip { color:#ff9a8a; font-size:12.5px; min-height:18px; }
   canvas#sky2d { width:100%; height:86px; display:block; border-radius:8px; }
-  #civView { position:fixed; left:14px; top:88px; z-index:6; width:392px; max-width:94vw; overflow:hidden; }
-  #civView .hd { display:flex; justify-content:space-between; align-items:center; padding:7px 12px 4px; }
-  #civView .hd b { font-size:13.5px; color:#ffd34d; }
-  #civView .hd button { padding:2px 9px; font-size:12px; }
-  #civCanvas { width:100%; height:238px; display:block; }
-  #civAct { padding:6px 12px 9px; font-size:12.5px; color:#c9c9d2; line-height:1.55; min-height:34px; }
+  #spaceView { position:fixed; left:14px; top:88px; z-index:6; width:392px; max-width:94vw; overflow:hidden; }
+  #spaceView .hd { display:flex; justify-content:space-between; align-items:center; padding:7px 12px 4px; }
+  #spaceView .hd b { font-size:13.5px; color:#ffd34d; }
+  #spaceView .hd select { padding:2px 6px; font-size:12px; }
+  #spaceCanvas { width:100%; height:238px; display:block; }
+  #civInfo { position:fixed; left:14px; top:392px; z-index:6; width:392px; max-width:94vw; padding:8px 12px 9px; }
+  #civInfo b { font-size:13.5px; color:#ffd34d; display:block; margin-bottom:3px; }
+  #civAct { font-size:12.5px; color:#c9c9d2; line-height:1.55; }
   #flash { position:fixed; inset:0; z-index:15; pointer-events:none; background:radial-gradient(ellipse at center, rgba(255,120,40,.55), rgba(255,40,0,.25) 60%, transparent 78%); opacity:0; }
   @media (max-width: 900px) { #civView { top:auto; bottom:118px; } }
   .kv { font-size:12.5px; line-height:1.9; color:#c9c9d2; }
@@ -85,7 +88,7 @@
 </style>
 </head>
 <body>
-<div id="scene"></div>
+<div id="sceneWorld"><canvas id="worldCanvas"></canvas></div>
 
 <div id="hud-top">
   <h1>三 体 游 戏</h1>
@@ -95,9 +98,14 @@
 <div id="toast" class="glass"><div class="tt"></div><div class="tx"></div></div>
 <div id="flash"></div>
 
-<div id="civView" class="glass">
-  <div class="hd"><b id="civViewTitle">文明实景</b><button id="btnCivView">收起</button></div>
-  <canvas id="civCanvas" width="784" height="476"></canvas>
+<div id="spaceView" class="glass">
+  <div class="hd"><b>轨道监控 · 三体星系</b>
+    <select id="spaceMode"><option value="free">全景</option><option value="planet">跟随行星</option></select>
+  </div>
+  <canvas id="spaceCanvas" width="784" height="476"></canvas>
+</div>
+<div id="civInfo" class="glass">
+  <b id="civViewTitle">文明实景</b>
   <div id="civAct">文明尚未诞生……</div>
 </div>
 
@@ -108,9 +116,9 @@
   <div><span class="lbl">太阳（地平线）</span><span class="big" id="ckSuns">—</span></div>
   <button id="btnPause">⏸ 暂停</button>
   <label style="font-size:12px;color:#9a9aa5;">速度 <input id="speed" type="range" min="0.25" max="20" step="0.25" value="1" style="width:110px;vertical-align:middle;"> <span id="speedVal">1×</span></label>
-  <button id="btnCamFree">🌌 全景</button>
-  <button id="btnCamPlanet">🪐 跟随行星</button>
-  <button id="btnCamSurface">👁 地表视角</button>
+  <button id="btnCamFree">🌄 环视世界</button>
+  <button id="btnCamPlanet">🏘 村庄近景</button>
+  <button id="btnCamSurface">👁 站在地面</button>
 </div>
 
 <div id="forecastWrap" class="glass">
@@ -634,16 +642,14 @@ function toast(tt, tx) {
 }
 
 // ================= 3D 场景 =================
-const container = $("scene");
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ canvas: $("spaceCanvas"), antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(392, 238, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
-container.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x04050a);
-const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 900);
+const camera = new THREE.PerspectiveCamera(55, 392 / 238, 0.1, 900);
 camera.position.set(0, 16, 30);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -781,10 +787,12 @@ function syncMeshes() {
 // ================= 相机模式 =================
 let camMode = "free", frameNo = 0, surfacePan = 0;
 function applyCamera(c) {
-  if (camMode === "free") {
-    controls.enabled = true;
+  const mode = camMode === "planet" ? "planet" : "free";
+  if (mode === "free") {
+    controls.enabled = true; controls.autoRotate = true; controls.autoRotateSpeed = 0.5;
     controls.target.lerp(new THREE.Vector3(c[0], c[1], c[2]), 0.04);
-  } else if (camMode === "planet") {
+  } else if (mode === "planet") {
+    controls.autoRotate = false;
     controls.enabled = true;
     const target = new THREE.Vector3(planet.p[0], planet.p[1], planet.p[2]);
     const delta = target.clone().sub(controls.target);
@@ -900,13 +908,14 @@ function renderAchs() {
 
 // ================= 文明实景窗（小人、村落、天气、脱水） =================
 let shakeT = 0, flashT = 0;
-const civRen = new THREE.WebGLRenderer({ canvas: $("civCanvas"), antialias: true });
+const civRen = new THREE.WebGLRenderer({ canvas: $("worldCanvas"), antialias: true });
 civRen.setPixelRatio(Math.min(devicePixelRatio, 2));
-civRen.setSize(392, 238, false);
+civRen.setSize(innerWidth, innerHeight, false);
 const civScene = new THREE.Scene();
 civScene.background = new THREE.Color(0x0a1224);
-const civCam = new THREE.PerspectiveCamera(50, 392 / 238, 0.1, 400);
-civCam.position.set(17, 13, 21);
+civScene.fog = new THREE.Fog(0x0a1224, 130, 430);
+const civCam = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 900);
+civCam.position.set(34, 24, 44);
 const civLight = new THREE.DirectionalLight(0xfff2d0, 1.6); civScene.add(civLight);
 civScene.add(new THREE.AmbientLight(0x8899bb, 0.55));
 const groundMat = new THREE.MeshStandardMaterial({ color: 0x4a7c43, roughness: 1 });
@@ -1022,6 +1031,7 @@ function renderCivView() {
   const nightTarget = new THREE.Color(0x060a18);
   const want = visibleSuns > 0 ? dayTarget : nightTarget;
   civScene.background.lerp(want, 0.04);
+  if (civScene.fog) civScene.fog.color.copy(civScene.background);
   civLight.intensity = 0.25 + Math.min(1.6, flux * 0.8);
   civLight.position.set(Math.cos(t * 0.02) * 20, 26, Math.sin(t * 0.02) * 20);
   const gTarget = new THREE.Color(tempC < -25 ? 0xdfe9f2 : tempC > 48 ? 0x5c3a22 : tempC < 2 ? 0x8fa88a : 0x4a7c43);
@@ -1036,7 +1046,7 @@ function renderCivView() {
   });
   // 村落按需重建
   const key = civ ? `${civ.no}|${civ.level}|${civ.state === "gone"}` : "none";
-  if (key !== lastVillageKey) { lastVillageKey = key; buildVillage(); }
+  if (key !== lastVillageKey) { lastVillageKey = key; buildVillage(); village.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); }
   matGlowWin.emissiveIntensity = (civ && civ.level >= 4 && visibleSuns === 0) ? 1.4 : 0;
   // 小人
   const targetCount = (!civ || civ.state === "gone" || MODE === "sandbox") ? 0 : Math.max(6, Math.min(PEOPLE_MAX, 6 + Math.floor(civ.pop / 380)));
@@ -1075,8 +1085,8 @@ function renderCivView() {
     for (let i = 0; i < 420; i++) {
       weatherPos.array[3*i+1] -= fall * dt * (0.6 + (i % 7) / 10);
       weatherPos.array[3*i] += Math.sin(t * 2 + i) * dt * 0.7;
-      if (weatherPos.array[3*i+1] < 0) weatherPos.array[3*i+1] = 24;
-      if (weatherPos.array[3*i+1] > 25) weatherPos.array[3*i+1] = 0.5;
+      if (weatherPos.array[3*i+1] < PLATEAU_Y) weatherPos.array[3*i+1] = 62;
+      if (weatherPos.array[3*i+1] > 64) weatherPos.array[3*i+1] = PLATEAU_Y + 0.5;
     }
     weatherPos.needsUpdate = true;
   }
@@ -1088,7 +1098,7 @@ function renderCivView() {
     for (let i = 0; i < 70; i++) {
       const life = ((t * 0.7 + i / 70) % 1);
       plumePos.array[3*i] = src[0] + Math.sin(i * 3.1 + t) * 0.3 * life + life * 1.2;
-      plumePos.array[3*i+1] = src[1] + life * (firePos ? 1.6 : 5);
+      plumePos.array[3*i+1] = src[1] + PLATEAU_Y + life * (firePos ? 1.6 : 5);
       plumePos.array[3*i+2] = src[2] + Math.cos(i * 2.3 + t) * 0.3 * life;
     }
     plumePos.needsUpdate = true;
@@ -1097,7 +1107,7 @@ function renderCivView() {
   if (prevCivState === "dehydrated" && civ && civ.state === "active") {
     splashT = 1;
     for (let i = 0; i < 120; i++) {
-      splashPos.array[3*i] = 12 + (Math.random()-0.5) * 6; splashPos.array[3*i+1] = 0.4; splashPos.array[3*i+2] = 7 + (Math.random()-0.5) * 4;
+      splashPos.array[3*i] = 12 + (Math.random()-0.5) * 6; splashPos.array[3*i+1] = PLATEAU_Y + 0.4; splashPos.array[3*i+2] = 7 + (Math.random()-0.5) * 4;
       splashVel[3*i] = (Math.random()-0.5) * 3; splashVel[3*i+1] = 2.5 + Math.random() * 3.5; splashVel[3*i+2] = (Math.random()-0.5) * 3;
     }
     splashPos.needsUpdate = true;
@@ -1108,13 +1118,12 @@ function renderCivView() {
     splashT -= dt * 0.5;
     for (let i = 0; i < 120; i++) {
       splashVel[3*i+1] -= 7 * dt;
-      splashPos.array[3*i] += splashVel[3*i] * dt; splashPos.array[3*i+1] = Math.max(0.1, splashPos.array[3*i+1] + splashVel[3*i+1] * dt); splashPos.array[3*i+2] += splashVel[3*i+2] * dt;
+      splashPos.array[3*i] += splashVel[3*i] * dt; splashPos.array[3*i+1] = Math.max(PLATEAU_Y + 0.1, splashPos.array[3*i+1] + splashVel[3*i+1] * dt); splashPos.array[3*i+2] += splashVel[3*i+2] * dt;
     }
     splashPos.needsUpdate = true; splash.material.opacity = Math.max(0, splashT);
   }
-  civCam.position.x = 17 + Math.sin(t * 0.05) * 1.6;
-  civCam.position.z = 21 + Math.cos(t * 0.04) * 1.2;
-  civCam.lookAt(0, 1, 0);
+  applyWorldCamera(dt, t);
+  worldTick(dt, t);
   civRen.render(civScene, civCam);
   if (frameNo % 30 === 0) {
     $("civViewTitle").textContent = MODE === "sandbox" ? "文明实景 · 沙盒" : civ ? `文明实景 · 第 ${civ.no} 号文明` : "文明实景";
@@ -1124,11 +1133,185 @@ function renderCivView() {
   if (shakeT > 0) shakeT = Math.max(0, shakeT - dt * 1.4);
   if (flashT > 0) { flashT = Math.max(0, flashT - dt * 0.9); $("flash").style.opacity = (flashT * 0.85).toFixed(2); }
 }
-$("btnCivView").onclick = () => {
-  const cv = $("civCanvas"), act = $("civAct"), hide = cv.style.display !== "none";
-  cv.style.display = hide ? "none" : "block"; act.style.display = hide ? "none" : "block";
-  $("btnCivView").textContent = hide ? "展开" : "收起";
-};
+$("spaceMode").onchange = e => { camMode = e.target.value; };
+
+// ================= v4：真实世界地形（山川 / 河流 / 森林） =================
+const PLATEAU_Y = 1.6, WATER_Y = 0.55;
+function hash2(x, z) { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); }
+function vnoise(x, z) {
+  const xi = Math.floor(x), zi = Math.floor(z), xf = x - xi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = zf * zf * (3 - 2 * zf);
+  const L = (a, b, k) => a + (b - a) * k;
+  return L(L(hash2(xi, zi), hash2(xi + 1, zi), u), L(hash2(xi, zi + 1), hash2(xi + 1, zi + 1), u), v);
+}
+function fbm(x, z) { return vnoise(x, z) * 0.55 + vnoise(x * 2.1, z * 2.1) * 0.27 + vnoise(x * 4.3, z * 4.3) * 0.12 + vnoise(x * 8.6, z * 8.6) * 0.06; }
+const sstep = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+function terrainH(x, z) {
+  let h = Math.pow(fbm(x * 0.012 + 10, z * 0.012 + 3), 1.6) * 26 - 4;
+  h += Math.max(0, fbm(x * 0.03 + 30, z * 0.03) - 0.60) * 34;                    // 山脊
+  const rz = 30 + Math.sin(x * 0.02) * 12, rd = Math.abs(z - rz);              // 河流路径
+  if (rd < 11) h = h * (rd / 11 * 0.75) + (-1.6) * (1 - rd / 11 * 0.75) - (11 - rd) * 0.16; // 河谷
+  const d0 = Math.hypot(x, z);
+  h += sstep(130, 200, d0) * 20;                                               // 远山环抱
+  return PLATEAU_Y * (1 - sstep(20, 46, d0)) + h * sstep(20, 46, d0);
+}
+const terrainGeo = new THREE.PlaneGeometry(430, 430, 120, 120);
+terrainGeo.rotateX(-Math.PI / 2);
+{
+  const pos = terrainGeo.getAttribute("position");
+  for (let i = 0; i < pos.count; i++) pos.setY(i, terrainH(pos.getX(i), pos.getZ(i)));
+  terrainGeo.computeVertexNormals();
+  terrainGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3));
+}
+const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+terrain.receiveShadow = true; civScene.add(terrain);
+const C_GRASS = new THREE.Color(0x55853f), C_GRASS2 = new THREE.Color(0x77a24b), C_FOREST = new THREE.Color(0x2e5d33),
+      C_ROCK = new THREE.Color(0x7d7a70), C_SNOW = new THREE.Color(0xeef4fa), C_SAND = new THREE.Color(0xc2b280),
+      C_DRY = new THREE.Color(0x9a7c46), C_CHAR = new THREE.Color(0x4a3826), C_TMP = new THREE.Color();
+function paintTerrain(band) {
+  const pos = terrainGeo.getAttribute("position"), nor = terrainGeo.getAttribute("normal"), col = terrainGeo.getAttribute("color");
+  const snowline = band === "frozen" ? 0.9 : band === "cold" ? 1.2 : band === "mild" ? 9 : 60;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), slope = 1 - nor.getY(i);
+    const moist = fbm(x * 0.05 + 40, z * 0.05 + 9);
+    if (y < WATER_Y + 0.3) C_TMP.copy(C_SAND);
+    else if (slope > 0.42) C_TMP.copy(C_ROCK);
+    else if (y > snowline) C_TMP.copy(C_SNOW);
+    else if (band === "scorch") C_TMP.copy(moist > 0.55 ? C_CHAR : C_DRY);
+    else if (band === "hot") C_TMP.copy(C_DRY).lerp(C_GRASS, moist * 0.5);
+    else C_TMP.copy(C_GRASS).lerp(moist > 0.58 ? C_FOREST : C_GRASS2, 0.65);
+    if (band === "frozen" && y >= WATER_Y + 0.3 && slope <= 0.42) C_TMP.lerp(C_SNOW, 0.75);
+    col.setXYZ(i, C_TMP.r, C_TMP.g, C_TMP.b);
+  }
+  col.needsUpdate = true;
+}
+// 河流与湖面
+const waterMat = new THREE.MeshStandardMaterial({ color: 0x2a6db0, transparent: true, opacity: 0.78, roughness: 0.15, metalness: 0.05 });
+const water = new THREE.Mesh(new THREE.PlaneGeometry(430, 430), waterMat);
+water.rotation.x = -Math.PI / 2; water.position.y = WATER_Y; civScene.add(water);
+// 森林（实例化）
+const TREE_N = 260;
+const trunkIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.22, 1.3, 5), new THREE.MeshStandardMaterial({ color: 0x6e4a2a, roughness: 1 }), TREE_N);
+const canopyIM = new THREE.InstancedMesh(new THREE.ConeGeometry(1.6, 3.8, 7), new THREE.MeshStandardMaterial({ roughness: 0.95 }), TREE_N);
+const treeBaseColors = [];
+{
+  const dummy = new THREE.Object3D(); let placed = 0, guard = 0;
+  while (placed < TREE_N && guard++ < 6000) {
+    const a = Math.random() * Math.PI * 2, r = 26 + Math.random() * 150;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r, h = terrainH(x, z);
+    if (h < WATER_Y + 0.3 || h > 8.5) continue;
+    const s = 0.8 + Math.random() * 1.1;
+    dummy.position.set(x, h + 0.6 * s, z); dummy.scale.setScalar(s); dummy.rotation.y = Math.random() * 3;
+    dummy.updateMatrix(); trunkIM.setMatrixAt(placed, dummy.matrix);
+    dummy.position.y = h + (1.3 + 1.7) * s; dummy.updateMatrix(); canopyIM.setMatrixAt(placed, dummy.matrix);
+    const c = new THREE.Color().setHSL(0.29 + Math.random() * 0.06, 0.5, 0.26 + Math.random() * 0.12);
+    canopyIM.setColorAt(placed, c); treeBaseColors.push(c);
+    placed++;
+  }
+  trunkIM.count = canopyIM.count = placed;
+  trunkIM.castShadow = canopyIM.castShadow = true;
+  civScene.add(trunkIM, canopyIM);
+}
+function tintTrees(band) {
+  const c = new THREE.Color();
+  treeBaseColors.forEach((base, i) => {
+    c.copy(base);
+    if (band === "frozen" || band === "cold") c.lerp(new THREE.Color(0xe8f0f8), band === "frozen" ? 0.6 : 0.3);
+    if (band === "scorch") c.lerp(new THREE.Color(0x2e2015), 0.75);
+    if (band === "hot") c.lerp(new THREE.Color(0x8a7c2e), 0.4);
+    canopyIM.setColorAt(i, c);
+  });
+  if (canopyIM.instanceColor) canopyIM.instanceColor.needsUpdate = true;
+}
+// 云、星、光
+const clouds = [];
+for (let i = 0; i < 11; i++) {
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffffff, transparent: true, opacity: 0.13 + Math.random() * 0.13, depthWrite: false, fog: false }));
+  spr.position.set((Math.random()-0.5) * 480, 50 + Math.random() * 30, (Math.random()-0.5) * 480);
+  spr.scale.set(60 + Math.random() * 60, 16 + Math.random() * 12, 1);
+  civScene.add(spr); clouds.push(spr);
+}
+const starsMat = new THREE.PointsMaterial({ color: 0xcdd8f8, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0.15, fog: false });
+{
+  const N = 900, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const th = Math.random() * Math.PI * 2, ph = Math.random() * Math.PI * 0.48, r = 400;
+    pos[3*i] = r * Math.sin(ph) * Math.cos(th); pos[3*i+1] = r * Math.cos(ph) + 2; pos[3*i+2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  civScene.add(new THREE.Points(g, starsMat));
+}
+civScene.add(new THREE.HemisphereLight(0xbcd6ff, 0x3a4a2e, 0.5));
+civRen.shadowMap.enabled = true; civRen.shadowMap.type = THREE.PCFSoftShadowMap;
+civLight.castShadow = true;
+civLight.shadow.mapSize.set(1024, 1024);
+civLight.shadow.camera.left = -46; civLight.shadow.camera.right = 46;
+civLight.shadow.camera.top = 46; civLight.shadow.camera.bottom = -46;
+civLight.shadow.camera.far = 160;
+village.position.y = PLATEAU_Y;
+ground.visible = false;
+const peopleGroup = new THREE.Group(); peopleGroup.position.y = PLATEAU_Y; civScene.add(peopleGroup);
+people.forEach(P => { peopleGroup.add(P.g); P.g.traverse(o => { if (o.isMesh) o.castShadow = true; }); });
+// 天气粒子撒大到整个世界
+for (let i = 0; i < 420; i++) { weatherPos.array[3*i] = (Math.random()-0.5) * 300; weatherPos.array[3*i+1] = Math.random() * 62; weatherPos.array[3*i+2] = (Math.random()-0.5) * 300; }
+// 鸟群
+const birds = [];
+for (let i = 0; i < 6; i++) {
+  const g = new THREE.Group();
+  const wm = new THREE.MeshBasicMaterial({ color: 0x22242c, side: THREE.DoubleSide });
+  const wl = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.42), wm); wl.position.x = -0.7;
+  const wr = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.42), wm); wr.position.x = 0.7;
+  g.add(wl, wr); civScene.add(g);
+  birds.push({ g, wl, wr, ang: Math.random() * 6.3, r: 34 + Math.random() * 30, h: 24 + Math.random() * 10, spd: 0.05 + Math.random() * 0.04, ph: Math.random() * 7 });
+}
+// 世界相机
+let worldMode = "orbit", lastWorldMode = "";
+const worldControls = new OrbitControls(civCam, civRen.domElement);
+worldControls.enableDamping = true; worldControls.autoRotate = true; worldControls.autoRotateSpeed = 0.4;
+worldControls.maxPolarAngle = 1.48; worldControls.minDistance = 6; worldControls.maxDistance = 180;
+worldControls.target.set(0, PLATEAU_Y + 1, 0);
+function applyWorldCamera(dt, t) {
+  if (worldMode === "orbit") {
+    if (lastWorldMode !== "orbit") civCam.position.set(38, 26, 46);
+    worldControls.enabled = true; worldControls.update();
+  } else {
+    worldControls.enabled = false;
+    if (worldMode === "village") {
+      const a = t * 0.07;
+      civCam.position.set(Math.cos(a) * 25, PLATEAU_Y + 8.5, Math.sin(a) * 25);
+      civCam.lookAt(0, PLATEAU_Y + 1.2, 0);
+    } else {
+      const yaw = t * 0.06, pos = new THREE.Vector3(9, PLATEAU_Y + 1.7, 13);
+      civCam.position.copy(pos);
+      civCam.lookAt(pos.x + Math.sin(yaw) * 40, PLATEAU_Y + 3.4 + Math.sin(t * 0.13) * 1.6, pos.z + Math.cos(yaw) * 40);
+    }
+  }
+  lastWorldMode = worldMode;
+}
+let lastBand = "";
+function worldTick(dt, t) {
+  clouds.forEach((c, i) => { c.position.x += dt * (0.7 + (i % 4) * 0.22); if (c.position.x > 260) c.position.x = -260; });
+  water.position.y = WATER_Y + Math.sin(t * 0.8) * 0.03;
+  starsMat.opacity += (((visibleSuns === 0) ? 0.95 : 0.13) - starsMat.opacity) * 0.03;
+  const birdOK = era === "稳定纪元" && tempC > 2 && tempC < 34 && visibleSuns > 0 && civ && civ.state === "active";
+  birds.forEach(b => {
+    b.g.visible = !!birdOK; if (!birdOK) return;
+    b.ang += b.spd * dt * 3;
+    b.g.position.set(Math.cos(b.ang) * b.r, PLATEAU_Y + b.h + Math.sin(t + b.ph) * 1.2, Math.sin(b.ang) * b.r);
+    b.g.rotation.y = -b.ang;
+    const flap = Math.sin(t * 9 + b.ph) * 0.55;
+    b.wl.rotation.z = flap; b.wr.rotation.z = -flap;
+  });
+  const band = tempC < -25 ? "frozen" : tempC < 2 ? "cold" : tempC > 60 ? "scorch" : tempC > 45 ? "hot" : "mild";
+  if (band !== lastBand) {
+    lastBand = band; paintTerrain(band); tintTrees(band);
+    if (band === "frozen") { waterMat.color.setHex(0xcfe2ee); waterMat.opacity = 0.96; waterMat.roughness = 0.6; }
+    else if (band === "scorch" || band === "hot") { waterMat.color.setHex(0x2a6d8a); waterMat.opacity = 0.8; waterMat.roughness = 0.2; }
+    else { waterMat.color.setHex(0x2a6db0); waterMat.opacity = 0.78; waterMat.roughness = 0.15; }
+  }
+}
+paintTerrain("mild");
+
 
 // ================= 主循环 =================
 let running = true, started = false;
@@ -1192,9 +1375,9 @@ document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => {
 });
 $("btnPause").onclick = () => { running = !running; $("btnPause").textContent = running ? "⏸ 暂停" : "▶ 继续"; };
 $("speed").oninput = e => $("speedVal").textContent = e.target.value + "×";
-$("btnCamFree").onclick = () => camMode = "free";
-$("btnCamPlanet").onclick = () => camMode = "planet";
-$("btnCamSurface").onclick = () => { camMode = "surface"; toast("👁 地表视角", "你正站在行星表面。看，太阳升起来了——也许不止一颗。"); };
+$("btnCamFree").onclick = () => { worldMode = "orbit"; toast("🌄 环视世界", "高空环视这片大陆：山川、河流、森林和那座小小的村庄。"); };
+$("btnCamPlanet").onclick = () => { worldMode = "village"; toast("🏘 村庄近景", "低空绕着村庄飞。看他们过日子。"); };
+$("btnCamSurface").onclick = () => { worldMode = "surface"; toast("👁 站在地面", "你正站在村庄边的草地上。看，太阳升起来了——也许不止一颗。"); };
 $("btnDehydrate").onclick = () => dehydrate();
 $("btnSoak").onclick = soak;
 $("btnRestart").onclick = () => init($("preset").value, false);
@@ -1272,9 +1455,8 @@ $("btnEnter").onclick = () => {
   else toast("🌅 第 141 号文明", "先活过第一个混沌纪元。稳定纪元里攒科研点，点亮精确历法。");
 };
 addEventListener("resize", () => {
-  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  if (composer) composer.setSize(innerWidth, innerHeight);
+  civCam.aspect = innerWidth / innerHeight; civCam.updateProjectionMatrix();
+  civRen.setSize(innerWidth, innerHeight, false);
 });
 renderAchs(); renderTechs();
 animate();

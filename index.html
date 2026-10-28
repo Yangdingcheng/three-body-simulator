@@ -1713,7 +1713,7 @@ function animate() {
   requestAnimationFrame(animate);
   frameNo++;
   const nowMs = performance.now();
-  const realDt = Math.min(0.5, (nowMs - lastFrameMs) / 1000); lastFrameMs = nowMs;   // v11.1：钳制放宽到 0.5s，低帧率设备上时钟不再慢于标称速度
+  const realDt = Math.min(5, (nowMs - lastFrameMs) / 1000); lastFrameMs = nowMs;   // v11.2：按墙钟推进——帧间隔钳制 5s，帧率再低时钟也不慢于标称（步数上限防螺旋）
   if (realDt > 0.0005) fpsEMA = fpsEMA * 0.95 + (1 / realDt) * 0.05;
   if (frameNo % 240 === 0 && started && fpsEMA < 38 && prScale > 1.0) { prScale = Math.max(1.0, prScale - 0.25); civRen.setPixelRatio(prScale); }
   if (frameNo % 600 === 0 && started) saveMeta();
@@ -1738,6 +1738,7 @@ function animate() {
   if (started) {
     const c = syncMeshes(); applyCamera(c);
     renderCivView();
+    { const _y = simTime / YEAR; $("ckYear").textContent = Math.floor(_y) + " 年 " + Math.floor((_y % 1) * 365) + " 天"; }   // v11.2：时钟每帧刷新，不再受面板节流影响
     if (frameNo % 12 === 0) { refreshPanel(); drawSky2d(); }
     if (frameNo % 60 === 0) drawForecast();
   }

@@ -6,464 +6,1034 @@
 <title>三体游戏模拟器 · Three-Body Simulator</title>
 <style>
   * { box-sizing: border-box; }
-  body { margin:0; background:#07080c; color:#e8e8ec; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
-  header { padding:14px 18px 6px; }
-  header h1 { margin:0; font-size:22px; letter-spacing:1px; }
-  header p { margin:4px 0 0; color:#9a9aa5; font-size:13px; }
-  .layout { display:flex; gap:12px; padding:10px 14px 16px; flex-wrap:wrap; }
-  .stage { flex:1 1 560px; min-width:320px; }
-  canvas#sky, canvas#chart { width:100%; display:block; }
-  #cv { width:100%; height:auto; display:block; background:#05060a; border:1px solid #26262e; border-radius:10px; }
-  .panel { flex:0 1 330px; min-width:290px; background:#101116; border:1px solid #26262e; border-radius:10px; padding:12px 14px; }
-  .panel h3 { margin:10px 0 6px; font-size:14px; color:#ffd34d; }
-  .panel h3:first-child { margin-top:0; }
-  .stats { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; font-size:13px; }
-  .stats b { color:#fff; font-size:15px; }
-  .stat { background:#17181f; border-radius:8px; padding:6px 9px; }
+  html, body { margin:0; height:100%; overflow:hidden; background:#04050a; color:#e8e8ec;
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+  #scene { position:fixed; inset:0; }
+  .glass { background:rgba(13,14,22,.82); border:1px solid rgba(255,255,255,.09); border-radius:14px;
+    backdrop-filter: blur(10px); box-shadow:0 8px 32px rgba(0,0,0,.45); }
+  #hud-top { position:fixed; top:12px; left:14px; z-index:5; pointer-events:none; }
+  #hud-top h1 { margin:0; font-size:21px; letter-spacing:2px; text-shadow:0 2px 12px #000; }
+  #hud-top p { margin:3px 0 0; font-size:12px; color:#b9b9c4; }
+  #clockbar { position:fixed; left:14px; bottom:12px; z-index:6; padding:10px 14px; display:flex; gap:14px; align-items:center; flex-wrap:wrap; max-width:min(94vw,760px); }
+  #clockbar .big { font-size:19px; font-weight:700; }
+  #clockbar .lbl { font-size:10.5px; color:#9a9aa5; display:block; }
+  button, select { background:#1d1e2a; color:#eee; border:1px solid #3a3b46; border-radius:9px; padding:7px 12px; font-size:13px; cursor:pointer; }
+  button:hover:not(:disabled), select:hover { border-color:#ffd34d; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  button.warn { border-color:#a33; color:#ffb3ab; }
+  button.gold { border-color:#a8842c; color:#ffd34d; }
+  input[type=range] { accent-color:#ffd34d; }
+  #panel { position:fixed; top:12px; right:12px; z-index:6; width:338px; max-width:92vw; max-height:calc(100vh - 110px);
+    display:flex; flex-direction:column; overflow:hidden; }
+  #tabs { display:flex; gap:4px; padding:8px 8px 0; }
+  #tabs button { flex:1; border-bottom:none; border-radius:9px 9px 0 0; background:#14151f; }
+  #tabs button.on { background:#1e202e; color:#ffd34d; border-color:#ffd34d; }
+  #tabbody { padding:10px 13px 13px; overflow-y:auto; }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .stat { background:#17181f; border-radius:9px; padding:6px 9px; font-size:13px; }
   .stat span { color:#9a9aa5; display:block; font-size:11px; margin-bottom:2px; }
-  .era-stable { color:#6fe08a !important; } .era-chaotic { color:#ff7a6b !important; }
+  .stat b { font-size:14.5px; }
+  .era-s { color:#6fe08a; } .era-c { color:#ff7a6b; }
+  .bar { height:8px; background:#26272f; border-radius:4px; overflow:hidden; margin:4px 0 8px; }
+  .bar > div { height:100%; background:linear-gradient(90deg,#ffb347,#ffd34d); width:0%; transition:width .3s; }
   .row { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; align-items:center; }
-  button, select { background:#1d1e26; color:#eee; border:1px solid #3a3b46; border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; }
-  button:hover, select:hover { border-color:#ffd34d; }
-  button.warn { border-color:#d33; color:#ffb3ab; }
-  input[type=range] { flex:1; accent-color:#ffd34d; }
-  label { font-size:12px; color:#9a9aa5; }
-  #log { list-style:none; margin:6px 0 0; padding:0; font-size:12.5px; line-height:1.55; max-height:210px; overflow-y:auto; }
-  #log li { padding:4px 8px; background:#17181f; border-left:3px solid #3a3b46; border-radius:4px; margin-bottom:5px; }
-  #log li.bad { border-left-color:#d00; } #log li.good { border-left-color:#2e9e57; } #log li.info { border-left-color:#3a7bd0; }
   .hint { font-size:12px; color:#9a9aa5; line-height:1.6; }
-  .big-btn { width:100%; padding:10px; font-size:15px; }
-  details { margin-top:10px; } summary { cursor:pointer; color:#ffd34d; font-size:13px; }
-  .rules { font-size:12.5px; color:#bdbdc6; line-height:1.75; padding-left:18px; margin:6px 0; }
+  h3.sec { margin:12px 0 6px; font-size:13.5px; color:#ffd34d; }
+  h3.sec:first-child { margin-top:2px; }
+  .tech { background:#17181f; border:1px solid #26262e; border-radius:10px; padding:8px 10px; margin-bottom:7px; }
+  .tech b { font-size:13.5px; } .tech p { margin:3px 0 6px; font-size:12px; color:#b9b9c4; line-height:1.5; }
+  .tech .lv { color:#ffd34d; font-size:12px; }
+  #log { list-style:none; margin:0; padding:0; font-size:12.5px; line-height:1.55; }
+  #log li { padding:4px 8px; background:#17181f; border-left:3px solid #3a3b46; border-radius:4px; margin-bottom:5px; }
+  #log li.bad { border-left-color:#d33; } #log li.good { border-left-color:#2e9e57; } #log li.info { border-left-color:#3a7bd0; } #log li.story { border-left-color:#a8842c; background:#1c1a14; }
+  .ach { display:inline-block; background:#1c1a14; border:1px solid #4a3d1c; color:#d8c98a; border-radius:999px; padding:2px 9px; font-size:11.5px; margin:0 5px 5px 0; }
+  .ach.off { opacity:.35; border-color:#333; color:#888; background:#14151a; }
+  #forecastWrap { position:fixed; left:50%; transform:translateX(-50%); bottom:12px; z-index:5; width:min(680px,60vw); padding:8px 12px 6px; }
+  #forecastWrap .lbl { font-size:11px; color:#9a9aa5; display:flex; justify-content:space-between; }
+  #forecast { width:100%; height:30px; display:block; }
+  @media (max-width: 1180px) { #forecastWrap { display:none; } }
+  #toast { position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:8; max-width:min(620px,92vw);
+    padding:12px 18px; text-align:center; display:none; }
+  #toast .tt { color:#ffd34d; font-size:16px; font-weight:700; margin-bottom:4px; }
+  #toast .tx { font-size:13px; color:#d8d8e0; line-height:1.6; }
+  #modal { position:fixed; inset:0; z-index:20; background:rgba(2,3,6,.66); display:none; align-items:center; justify-content:center; }
+  #modalCard { width:min(560px,92vw); padding:22px 24px; }
+  #modalCard h2 { margin:0 0 8px; font-size:19px; color:#ffd34d; }
+  #modalCard p { font-size:14px; line-height:1.75; color:#dcdce4; }
+  #modalCard .choice { display:block; width:100%; text-align:left; margin-top:9px; padding:10px 13px; }
+  #modalCard .choice small { display:block; color:#9a9aa5; margin-top:2px; }
+  #start { position:fixed; inset:0; z-index:30; background:radial-gradient(ellipse at 50% 35%, #101528 0%, #04050a 65%);
+    display:flex; align-items:center; justify-content:center; }
+  #startCard { width:min(600px,94vw); padding:30px 34px; text-align:center; }
+  #startCard h1 { font-size:30px; letter-spacing:4px; margin:0 0 6px; }
+  #startCard .sub { color:#b9b9c4; font-size:13.5px; line-height:1.7; }
+  #startCard .row { justify-content:center; }
+  .seg { display:flex; gap:6px; justify-content:center; margin:12px 0 4px; }
+  .seg button.on { border-color:#ffd34d; color:#ffd34d; background:#262213; }
+  #loadTip { color:#ff9a8a; font-size:12.5px; min-height:18px; }
+  canvas#sky2d { width:100%; height:86px; display:block; border-radius:8px; }
+  .kv { font-size:12.5px; line-height:1.9; color:#c9c9d2; }
+  .kv b { color:#fff; }
 </style>
 </head>
 <body>
-<header>
-  <h1>三体游戏模拟器</h1>
-  <p>真实三体引力（RK4 数值积分）驱动的《三体》游戏世界：一颗行星、三个太阳、混沌纪元与稳定纪元、脱水与浸泡、文明的兴衰。给岁月以文明，而不是给文明以岁月。</p>
-</header>
-<div class="layout">
-  <div class="stage">
-    <canvas id="cv" width="900" height="900"></canvas>
-    <div class="row">
-      <label>初始构型
-        <select id="preset">
+<div id="scene"></div>
+
+<div id="hud-top">
+  <h1>三 体 游 戏</h1>
+  <p id="modeLine">真实三体引力 · RK4 积分 · 三个太阳从不说谎</p>
+</div>
+
+<div id="toast" class="glass"><div class="tt"></div><div class="tx"></div></div>
+
+<div id="clockbar" class="glass">
+  <div><span class="lbl">游戏时间</span><span class="big" id="ckYear">0.0 年</span></div>
+  <div><span class="lbl">纪元</span><span class="big" id="ckEra">—</span></div>
+  <div><span class="lbl">地表温度</span><span class="big" id="ckTemp">—</span></div>
+  <div><span class="lbl">太阳（地平线）</span><span class="big" id="ckSuns">—</span></div>
+  <button id="btnPause">⏸ 暂停</button>
+  <label style="font-size:12px;color:#9a9aa5;">速度 <input id="speed" type="range" min="0.25" max="20" step="0.25" value="1" style="width:110px;vertical-align:middle;"> <span id="speedVal">1×</span></label>
+  <button id="btnCamFree">🌌 全景</button>
+  <button id="btnCamPlanet">🪐 跟随行星</button>
+  <button id="btnCamSurface">👁 地表视角</button>
+</div>
+
+<div id="forecastWrap" class="glass">
+  <div class="lbl"><span>历法预报 · 未来纪元带</span><span id="fcNote">未掌握精确历法</span></div>
+  <canvas id="forecast" width="1320" height="60"></canvas>
+</div>
+
+<aside id="panel" class="glass">
+  <div id="tabs">
+    <button data-tab="civ" class="on">文明</button>
+    <button data-tab="tech">科技</button>
+    <button data-tab="sandbox">沙盒</button>
+    <button data-tab="log">编年史</button>
+  </div>
+  <div id="tabbody">
+    <section data-page="civ">
+      <div class="stats">
+        <div class="stat"><span>文明编号</span><b id="stCivNo">—</b></div>
+        <div class="stat"><span>文明程度</span><b id="stCivLvl">—</b></div>
+        <div class="stat"><span>人口（万）</span><b id="stPop">—</b></div>
+        <div class="stat"><span>状态</span><b id="stCivState">—</b></div>
+        <div class="stat"><span>科研点</span><b id="stSci">0</b></div>
+        <div class="stat"><span>掩体火种</span><b id="stShield">0</b></div>
+        <div class="stat"><span>已毁灭文明</span><b id="stDead">0</b></div>
+        <div class="stat"><span>本纪元已持续</span><b id="stEraAge">—</b></div>
+      </div>
+      <h3 class="sec">科技进度（本时代）</h3>
+      <div class="bar"><div id="lvlBar"></div></div>
+      <div class="row">
+        <button id="btnDehydrate" class="warn" style="flex:1;">🧊 全民脱水</button>
+        <button id="btnSoak" style="flex:1;" disabled>💧 浸泡复苏</button>
+      </div>
+      <p class="hint" id="civHint">稳定纪元里文明会自己发展。混沌纪元持续恶化时，记得脱水。</p>
+      <h3 class="sec">地表天空</h3>
+      <canvas id="sky2d" width="620" height="172"></canvas>
+      <h3 class="sec">世界数据</h3>
+      <div class="kv" id="worldKv">—</div>
+    </section>
+    <section data-page="tech" hidden>
+      <p class="hint">科研点在稳定纪元中按人口与文明程度积累。用它点亮科技——有些是活下去的本钱，有些是通往原子时代的门票。</p>
+      <div id="techList"></div>
+    </section>
+    <section data-page="sandbox" hidden>
+      <h3 class="sec">物理定律（实时生效）</h3>
+      <label class="hint">引力常数 G <span id="gVal">1.00</span><br><input id="sbG" type="range" min="0.5" max="1.6" step="0.02" value="1" style="width:100%;"></label>
+      <label class="hint">引力幂次（距离的几次方反比） <span id="expVal">2.00</span><br><input id="sbExp" type="range" min="1.5" max="2.6" step="0.05" value="2" style="width:100%;"></label>
+      <p class="hint">真实宇宙里幂次是 2。把它改掉，你会亲眼看见“物理规律变了”的世界如何崩解或重组。</p>
+      <h3 class="sec">太阳管理</h3>
+      <div class="row"><select id="sunPick" style="flex:1;"></select></div>
+      <label class="hint">所选太阳质量 <span id="mVal">1.00</span><br><input id="sbMass" type="range" min="0.3" max="3" step="0.05" value="1" style="width:100%;"></label>
+      <div class="row">
+        <button id="btnAddSun">➕ 添加太阳</button>
+        <button id="btnDelSun">➖ 移除所选</button>
+        <button id="btnKick">💥 随机扰动</button>
+      </div>
+      <div class="row">
+        <button id="btnComet">☄️ 召唤彗星</button>
+        <button id="btnRespawn">🌍 重置行星</button>
+        <button id="btnTrails">轨迹：开</button>
+      </div>
+      <h3 class="sec">初始构型</h3>
+      <div class="row">
+        <select id="preset" style="flex:1;">
           <option value="chaotic">混沌三体（经典乱局）</option>
           <option value="stable">稳定纪元（双星+远日）</option>
           <option value="figure8">8 字轨道（数学稳定解）</option>
           <option value="doom">三日凌空（极端局）</option>
         </select>
-      </label>
-      <button id="btnRestart">重新开局</button>
-      <button id="btnPause">暂停</button>
-      <label style="flex:1; display:flex; gap:8px; align-items:center;">速度 <input id="speed" type="range" min="0.25" max="6" step="0.25" value="1"><span id="speedVal">1×</span></label>
-      <label><input id="trails" type="checkbox" checked> 轨迹</label>
-    </div>
-    <details>
-      <summary>玩法与规则（点开看）</summary>
-      <ul class="rules">
-        <li><b>物理是真的</b>：三个太阳按牛顿万有引力互相拉扯，用 RK4 方法一步步算，没有预设轨道——混沌是算出来的，不是演出来的。</li>
-        <li><b>温度是真的</b>：地表温度由三颗太阳的辐射通量（与距离平方成反比）合成，再加行星的热惯性，所以升温降温都有滞后。</li>
-        <li><b>纪元判定</b>：最近 4 年里气温大部分时间在宜居区间、无极端值 → 稳定纪元，文明发展；否则混沌纪元。</li>
-        <li><b>脱水</b>：混沌纪元里可以把全民脱水存起来躲灾（不发展、也不死于冷热）；等稳定纪元回来再浸泡复苏。时机错了，一样会被三日凌空和极寒筛掉。</li>
-        <li><b>毁灭</b>：持续酷热、持续严寒、三日凌空、坠入太阳、被甩出星系，都会终结这一号文明。下一纪元里，新文明会带着遗迹启示重生（发展速度有加成）。</li>
-        <li><b>通关</b>：让任何一号文明活着进入原子时代。看看你需要毁灭多少次。</li>
-      </ul>
-    </details>
+        <button id="btnRestart">重新开局</button>
+      </div>
+      <p class="hint">沙盒操作即时生效，不需要重开。添加第四颗太阳之后，那就不只是三体问题了。</p>
+    </section>
+    <section data-page="log" hidden>
+      <h3 class="sec">文明编年史</h3>
+      <ul id="log"></ul>
+      <h3 class="sec">成就</h3>
+      <div id="achList"></div>
+    </section>
   </div>
-  <div class="panel">
-    <h3>世界状态</h3>
-    <div class="stats">
-      <div class="stat"><span>游戏时间</span><b id="stYear">0.0 年</b></div>
-      <div class="stat"><span>当前纪元</span><b id="stEra">—</b></div>
-      <div class="stat"><span>地表温度</span><b id="stTemp">—</b></div>
-      <div class="stat"><span>地平线上太阳</span><b id="stSuns">—</b></div>
-      <div class="stat"><span>昼夜</span><b id="stDay">—</b></div>
-      <div class="stat"><span>距最近太阳</span><b id="stDist">—</b></div>
-    </div>
-    <h3>地表天空（站在行星上看）</h3>
-    <canvas id="sky" width="600" height="120"></canvas>
-    <h3>气温历史</h3>
-    <canvas id="chart" width="600" height="110"></canvas>
-    <h3 id="civTitle">文明</h3>
-    <div class="stats">
-      <div class="stat"><span>文明编号</span><b id="stCivNo">—</b></div>
-      <div class="stat"><span>文明程度</span><b id="stCivLvl">—</b></div>
-      <div class="stat"><span>人口（万）</span><b id="stPop">—</b></div>
-      <div class="stat"><span>状态</span><b id="stCivState">—</b></div>
-      <div class="stat"><span>已毁灭文明</span><b id="stDead">0</b></div>
-      <div class="stat"><span>最高成就</span><b id="stBest">—</b></div>
-    </div>
-    <div class="row">
-      <button id="btnDehydrate" class="big-btn warn">🧊 全民脱水（躲灾）</button>
-    </div>
-    <div class="row">
-      <button id="btnSoak" class="big-btn" disabled>💧 浸泡复苏</button>
-    </div>
-    <p class="hint" id="civHint">稳定纪元里文明会自己发展。混沌纪元持续恶化时，记得脱水。</p>
-    <h3>文明编年史</h3>
-    <ul id="log"></ul>
+</aside>
+
+<div id="modal"><div id="modalCard" class="glass">
+  <h2 id="mTitle"></h2><p id="mText"></p><div id="mChoices"></div>
+</div></div>
+
+<div id="start"><div id="startCard" class="glass">
+  <h1>三 体 游 戏</h1>
+  <p class="sub">三个太阳，一颗行星，一段文明史。<br>引力是真的，温度是真的，毁灭也是真的——用脱水、科技和抉择，把文明送进原子时代。</p>
+  <div class="seg" id="modeSeg">
+    <button data-mode="civ" class="on">文明模式（剧情+科技+抉择）</button>
+    <button data-mode="sandbox">沙盒模式（自由造物）</button>
   </div>
-</div>
+  <div class="row">
+    <select id="startPreset">
+      <option value="chaotic">混沌三体（经典乱局）</option>
+      <option value="stable">稳定纪元（推荐新手）</option>
+      <option value="figure8">8 字轨道（数学稳定解）</option>
+      <option value="doom">三日凌空（极端局）</option>
+    </select>
+  </div>
+  <div class="row"><button id="btnEnter" class="gold" style="font-size:16px;padding:11px 34px;">进入三体世界</button></div>
+  <p class="sub" style="font-size:12px;">拖拽旋转视角 · 滚轮缩放 · 地表视角可以站在行星上看日出<br>给岁月以文明，而不是给文明以岁月。</p>
+  <p id="loadTip"></p>
+</div></div>
 
-<script>
-"use strict";
-// ============ 物理：三体引力 + 无质量行星，RK4 积分 ============
-const G = 1, EPS2 = 0.0025;          // 引力常数（游戏单位）与软化参数，避免贴脸奇点
-const YEAR = 10;                     // 10 个时间单位 = 1 游戏年
-const DAY = 1.0;                     // 行星自转周期（时间单位）
-let suns = [], planet = null;
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-function accel(pos) {
-  // pos: [x0,y0,x1,y1,x2,y2,xp,yp]，返回各天体加速度（行星不反作用于太阳）
-  const a = new Array(8).fill(0);
-  for (let i = 0; i < 3; i++) {
-    for (let j = 0; j < 3; j++) {
-      if (i === j) continue;
-      const dx = pos[2*j] - pos[2*i], dy = pos[2*j+1] - pos[2*i+1];
-      const r2 = dx*dx + dy*dy + EPS2, inv = 1 / (r2 * Math.sqrt(r2));
-      a[2*i] += G * 1 * dx * inv; a[2*i+1] += G * 1 * dy * inv;   // 太阳质量均为 1
-    }
-  }
-  for (let j = 0; j < 3; j++) {
-    const dx = pos[2*j] - pos[6], dy = pos[2*j+1] - pos[7];
-    const r2 = dx*dx + dy*dy + EPS2, inv = 1 / (r2 * Math.sqrt(r2));
-    a[6] += G * dx * inv; a[7] += G * dy * inv;
-  }
-  return a;
-}
-function rk4(state, dt) {
-  // state: 位置 8 + 速度 8
-  const deriv = s => {
-    const a = accel(s.slice(0, 8));
-    return s.slice(8, 16).concat(a);
+// ================= 物理核心（3D N 体，RK4） =================
+const YEAR = 10, DAY = 1.0;
+let G = 1, GEXP = 2;                    // 引力常数与幂次（沙盒可改）
+const EPS2 = 0.0025;
+let suns = [];                          // {p:[x,y,z], v:[x,y,z], m, name, color}
+let planet = null;                      // {p, v}
+let comets = [];                        // {p, v, mesh}
+const SUN_COLORS = [0xffd34d, 0xffb347, 0xfff3c4, 0xff8a5c, 0xc4e2ff];
+const SUN_NAMES = ["太阳甲", "太阳乙", "太阳丙", "太阳丁", "太阳戊"];
+
+function accelAll(P) {
+  // P: 扁平数组 [每体 x,y,z]，体 0..n-2 是太阳，最后一个是行星（无质量，不反作用）
+  const n = P.length / 3, A = new Array(P.length).fill(0);
+  const force = (i, j, mj) => {
+    const dx = P[3*j]-P[3*i], dy = P[3*j+1]-P[3*i+1], dz = P[3*j+2]-P[3*i+2];
+    const r2 = dx*dx + dy*dy + dz*dz + EPS2;
+    const inv = G * mj / Math.pow(r2, (GEXP + 1) / 2);
+    A[3*i] += dx*inv; A[3*i+1] += dy*inv; A[3*i+2] += dz*inv;
   };
-  const add = (s, d, k) => s.map((v, i) => v + d[i] * k);
-  const k1 = deriv(state);
-  const k2 = deriv(add(state, k1, dt/2));
-  const k3 = deriv(add(state, k2, dt/2));
-  const k4 = deriv(add(state, k3, dt));
-  return state.map((v, i) => v + dt/6 * (k1[i] + 2*k2[i] + 2*k3[i] + k4[i]));
+  for (let i = 0; i < suns.length; i++)
+    for (let j = 0; j < suns.length; j++) if (i !== j) force(i, j, suns[j].m);
+  const pi = suns.length;
+  for (let j = 0; j < suns.length; j++) force(pi, j, suns[j].m);
+  comets.forEach((c, ci) => { const i = pi + 1 + ci; for (let j = 0; j < suns.length; j++) force(i, j, suns[j].m); });
+  return A;
 }
 function packState() {
-  const s = [];
-  suns.forEach(b => s.push(b.x, b.y));
-  s.push(planet.x, planet.y);
-  suns.forEach(b => s.push(b.vx, b.vy));
-  s.push(planet.vx, planet.vy);
-  return s;
+  const P = [], V = [];
+  suns.forEach(s => { P.push(...s.p); V.push(...s.v); });
+  P.push(...planet.p); V.push(...planet.v);
+  comets.forEach(c => { P.push(...c.p); V.push(...c.v); });
+  return P.concat(V);
 }
-function unpackState(s) {
-  suns.forEach((b, i) => { b.x = s[2*i]; b.y = s[2*i+1]; b.vx = s[8+2*i]; b.vy = s[8+2*i+1]; });
-  planet.x = s[6]; planet.y = s[7]; planet.vx = s[14]; planet.vy = s[15];
+function unpackState(S) {
+  const n = (S.length / 2);
+  const get = (i, off) => [S[off+3*i], S[off+3*i+1], S[off+3*i+2]];
+  suns.forEach((s, i) => { s.p = get(i, 0); s.v = get(i, n); });
+  planet.p = get(suns.length, 0); planet.v = get(suns.length, n);
+  comets.forEach((c, ci) => { const i = suns.length + 1 + ci; c.p = get(i, 0); c.v = get(i, n); });
 }
-function zeroMomentum() {
-  let mx = 0, my = 0;
-  suns.forEach(b => { mx += b.vx; my += b.vy; });
-  const cx = mx / 3, cy = my / 3;
-  suns.forEach(b => { b.vx -= cx; b.vy -= cy; });
+function rk4(S, dt) {
+  const n = S.length / 2;
+  const deriv = s => { const A = accelAll(s.slice(0, n)); return s.slice(n).concat(A); };
+  const add = (s, d, k) => s.map((v, i) => v + d[i]*k);
+  const k1 = deriv(S), k2 = deriv(add(S, k1, dt/2)), k3 = deriv(add(S, k2, dt/2)), k4 = deriv(add(S, k3, dt));
+  return S.map((v, i) => v + dt/6 * (k1[i] + 2*k2[i] + 2*k3[i] + k4[i]));
 }
+const dist = (a, b) => Math.hypot(a[0]-b[0], a[1]-b[1], a[2]-b[2]);
+function com() { const c = [0,0,0]; let M = 0; suns.forEach(s => { M += s.m; c[0]+=s.p[0]*s.m; c[1]+=s.p[1]*s.m; c[2]+=s.p[2]*s.m; }); return c.map(v => v/M); }
 
-// ============ 初始构型 ============
-const SUN_STYLE = [
-  { name: "太阳甲", color: "#ffd34d" }, { name: "太阳乙", color: "#ffb347" }, { name: "太阳丙", color: "#fff3c4" }
-];
-function makeSuns(list) { return list.map((s, i) => ({ x: s[0], y: s[1], vx: s[2], vy: s[3], ...SUN_STYLE[i] })); }
+// ================= 初始构型 =================
+function mkSun(p, v, m = 1) { const i = suns.length; return { p, v, m, name: SUN_NAMES[i] || "太阳", color: SUN_COLORS[i % SUN_COLORS.length] }; }
+function tiltZ(p, ang) { const c = Math.cos(ang), s = Math.sin(ang); return [p[0], p[1]*c - (p[2]||0)*s, p[1]*s + (p[2]||0)*c]; }
 const PRESETS = {
   chaotic() {
-    const suns = [];
-    const speeds = [0.88, 0.78, 0.84];
+    const list = [], speeds = [0.88, 0.78, 0.84];
     for (let i = 0; i < 3; i++) {
       const a = Math.PI/2 + i * 2*Math.PI/3, R = 2.3;
-      suns.push([R*Math.cos(a), R*Math.sin(a), -Math.sin(a)*speeds[i], Math.cos(a)*speeds[i]]);
+      list.push(mkSun(tiltZ([R*Math.cos(a), R*Math.sin(a), 0], 0.42), tiltZ([-Math.sin(a)*speeds[i], Math.cos(a)*speeds[i], 0.06*(i-1)], 0.42)));
     }
-    return { suns: makeSuns(suns), planet: { x: 8.2, y: 0, vx: 0, vy: 0.605 } };
+    return { suns: list, planet: { p: tiltZ([8.2, 0, 0], 0.42), v: tiltZ([0, 0.605, 0.1], 0.42) } };
   },
   stable() {
-    const v = 0.674, vc = -0.105;   // 双星质心绕总质心的速度，总质心在原点
-    return {
-      suns: makeSuns([
-        [-0.55, 10, vc, -v], [0.55, 10, vc, v],             // 紧密双星，质心在 (0,10)
-        [0, -20, 0.211, 0]                                   // 30 单位外绕行的第三颗，几乎不干扰
-      ]),
-      planet: { x: 5.5, y: 10, vx: vc, vy: 0.603 }
-    };
+    const v = 0.674, vc = -0.105;
+    return { suns: [
+      mkSun([-0.55, 0, 10], [vc, 0.12, -v]), mkSun([0.55, 0, 10], [vc, -0.12, v]),
+      mkSun([0, 1.5, -20], [0.211, 0, 0])
+    ], planet: { p: [5.5, 0, 10], v: [vc, 0.1, 0.603] } };
   },
   figure8() {
-    const s = 2.6, k = 0.620; // 8 字轨道的经典初条件，按尺度缩放
-    const p1 = [0.97000436*s, -0.24308753*s], p2 = [-p1[0], -p1[1]];
-    const v1 = [0.4662036850*k, 0.43236573*k];
-    return {
-      suns: makeSuns([ [p1[0], p1[1], v1[0], v1[1]], [p2[0], p2[1], v1[0], v1[1]], [0, 0, -2*v1[0], -2*v1[1]] ]),
-      planet: { x: 8.0, y: 0, vx: 0, vy: 0.612 }
-    };
+    const s = 2.6, k = 0.620;
+    const p1 = [0.97000436*s, 0, -0.24308753*s], v1 = [0.4662036850*k, 0, 0.43236573*k];
+    return { suns: [
+      mkSun([...p1], [...v1]), mkSun([-p1[0], 0, -p1[2]], [...v1]), mkSun([0, 0, 0], [-2*v1[0], 0, -2*v1[2]])
+    ], planet: { p: [8.0, 0.8, 0], v: [0, 0.06, 0.612] } };
   },
   doom() {
-    const suns = [];
+    const list = [];
     for (let i = 0; i < 3; i++) {
-      const a = i * 2*Math.PI/3 + 0.4, R = 2.6;
-      const ux = Math.cos(a), uy = Math.sin(a);
-      suns.push([R*ux, R*uy, -0.22*ux - 0.16*uy, -0.22*uy + 0.16*ux]); // 一边公转一边向中心坠落
+      const a = i * 2*Math.PI/3 + 0.4, R = 2.6, ux = Math.cos(a), uz = Math.sin(a);
+      list.push(mkSun([R*ux, 0.3*(i-1), R*uz], [-0.22*ux - 0.16*uz, 0, -0.22*uz + 0.16*ux]));
     }
-    return { suns: makeSuns(suns), planet: { x: 0, y: 4.6, vx: 0.5, vy: 0 } };
+    return { suns: list, planet: { p: [0, 0, 4.6], v: [0.5, 0, 0] } };
   }
 };
 
-// ============ 环境与文明 ============
+// ================= 游戏状态 =================
 const LEVELS = ["石器时代", "青铜时代", "铁器时代", "蒸汽时代", "电气时代", "信息时代", "原子时代"];
-let simTime = 0, tempC = 8, rot = 0, visibleSuns = 0, sunElev = [0, 0, 0];
-let dists = [9, 9, 9], flux = 1;
-let era = "未知", eraSamples = [], lastEraSample = -9;   // 近 4 年温度采样
-let heatTime = 0, coldTime = 0, tripleTime = 0;
-let civ = null, deadCount = 0, bestLevel = 0, totalYears = 0, won = false;
-let roundOver = false, restartTimer = null;
-const tempHist = [];
+const CHAPTERS = [
+  "他们在岩石上刻下第一个符号：那是一个太阳，还是三个？",
+  "青铜的炉火第一次照亮长夜。祭司说，太阳是可以数的——只要它肯停下来。",
+  "铁犁翻开冻土。农民开始相信，明天的太阳和今天的是同一个。",
+  "蒸汽顶起了城市的穹顶。历法还不完美，但饥饿第一次退后了。",
+  "电流穿过长夜时，整座城市像一颗低悬的星。有人说：我们不再等天亮，我们造天亮。",
+  "信息在纤维与光之间奔流。一个浸泡中的婴儿，在梦里数清了三个太阳。",
+  "原子在掌心裂开，像一颗驯服的太阳。文明第一次觉得，自己或许能和头顶那三位谈判。"
+];
+let MODE = "civ";
+let simTime = 0, tempC = 8, rot = 0, visibleSuns = 0, sunElev = [], sunAz = [], dists = [], flux = 1;
+let era = "未知", eraSamples = [], lastEraSample = -9, eraSince = 0, stableStreak = 0;
+let heatTime = 0, coldTime = 0, tripleTime = 0, civAge = 0;
+let civ = null, deadCount = 0, bestLevel = 0, science = 0, won = false, roundOver = false;
+let shieldBonus = 0;                 // 事件给的临时掩体
+let lastEventYear = -9, eventSeed = 7;
+const firedEvents = {};
+const $ = id => document.getElementById(id);
 
+// ================= 科技 =================
+const TECHS = [
+  { id: "calendar", name: "精确历法", max: 3, cost: [30, 70, 140], desc: "用长期观测拟合太阳的运行。解锁历法预报，等级越高，预报的年限越长、越敢断言。" },
+  { id: "dry", name: "脱水工艺", max: 3, cost: [40, 90, 160], desc: "把人变成纤维再泡回来，原本就是三体人的看家本事。浸泡复苏的人口保留率：60% → 80% → 95%。" },
+  { id: "bunker", name: "地下城市", max: 2, cost: [80, 170], desc: "向地层深处要生存。每号文明获得 1 / 2 次「火种」：致命灾害降临时以人口重创为代价免于灭绝。" },
+  { id: "obs", name: "深空观测", max: 2, cost: [50, 110], desc: "望远镜盯着每一颗太阳。致命温度需要持续更久才会杀死文明——预警，就是生机。" },
+  { id: "dome", name: "生态穹顶", max: 2, cost: [60, 130], desc: "人工气候层拓宽文明能忍受的温度带，纪元判定也随之放宽。" },
+  { id: "physics", name: "基础物理", max: 1, cost: [120], desc: "没有它，原子时代的大门推不开。完成基础物理后，文明才能冲击最后一个等级。" }
+];
+const techLv = {}; TECHS.forEach(t => techLv[t.id] = 0);
+const domeBand = () => techLv.dome * 6;
+const lethalFactor = () => 1 + techLv.obs * 0.5;
+const soakRate = () => [0.6, 0.8, 0.95][techLv.dry];
+const shieldCharges = () => techLv.bunker + shieldBonus;
+const forecastYears = () => [0, 8, 14, 22][techLv.calendar];
+
+// ================= 成就 =================
+const ACHS = [
+  ["first", "初入三体", "开始第一局游戏"], ["dry1", "第一滴水", "第一次全民脱水"],
+  ["soak1", "死里逃生", "第一次浸泡复苏"], ["shield1", "火种不灭", "靠掩体火种躲过一次灭绝"],
+  ["long40", "千年文明", "单号文明存活 40 年"], ["dead10", "文明不灭", "累计毁灭 10 个文明"],
+  ["info", "信息时代", "任一文明进入信息时代"], ["win", "原子时代", "通关：进入原子时代"],
+  ["four", "四日凌空", "让四颗太阳同时存在"], ["comet", "彗星猎手", "召唤一颗彗星"],
+  ["g", "改写定律", "修改引力常数或幂次"]
+];
+const achDone = {};
+function unlock(id) {
+  if (achDone[id]) return; achDone[id] = true;
+  const a = ACHS.find(x => x[0] === id);
+  if (a) { toast("🏆 成就解锁：" + a[1], a[2]); renderAchs(); }
+}
+
+// ================= 文明 =================
 function newCiv() {
-  const no = civ ? civ.no + 1 + Math.floor(Math.random()*2) : 141;
-  civ = { no, level: 0, progress: 0, pop: 120, state: "active", storedPop: 0 };
-  heatTime = coldTime = tripleTime = 0;
-  log(`第 ${no} 号文明诞生于三体世界，程度为${LEVELS[0]}。`, "info");
+  const no = civ ? civ.no + 1 + Math.floor(Math.random() * 2) : 141;
+  civ = { no, level: 0, progress: 0, pop: 120, state: "active", storedPop: 0, shieldsUsed: 0, bornAt: simTime };
+  civAge = 0; heatTime = coldTime = tripleTime = 0; shieldBonus = 0;
+  log(`第 ${no} 号文明诞生，程度为${LEVELS[0]}。${CHAPTERS[0]}`, "story");
   updateCivButtons();
+}
+function civDying(cause) {
+  // 返回 true 表示文明就此灭绝；有火种则重创续存
+  if (civ && civ.state !== "gone" && civ.shieldsUsed < shieldCharges()) {
+    civ.shieldsUsed++; civ.pop = Math.max(25, civ.pop * 0.3);
+    heatTime = coldTime = tripleTime = 0;
+    log(`地下城市保住了火种：第 ${civ.no} 号文明在「${cause}」中重创，人口锐减至 ${Math.round(civ.pop)} 万，但没有灭绝。`, "good");
+    toast("🔥 火种不灭", `「${cause}」被地下城市挡下，文明重创续存。`);
+    unlock("shield1");
+    return false;
+  }
+  endCiv(cause); return true;
 }
 function endCiv(cause) {
   if (!civ || civ.state === "gone") return;
-  log(`第 ${civ.no} 号文明毁于${cause}，此文明程度为${LEVELS[civ.level]}，存活 ${Math.max(1, Math.round(totalYears))} 年。它将化为三体史上的一个坐标。`, "bad");
-  deadCount++;
+  log(`第 ${civ.no} 号文明毁于${cause}，此文明程度为${LEVELS[civ.level]}，存活 ${Math.max(1, Math.round(civAge))} 年。它将化为三体史上的一个坐标。`, "bad");
+  deadCount++; if (deadCount >= 10) unlock("dead10");
   bestLevel = Math.max(bestLevel, civ.level);
-  civ.state = "gone";
-  updateCivButtons();
-  setTimeout(() => { totalYears = 0; newCiv(); }, 2600);
+  civ.state = "gone"; updateCivButtons();
+  setTimeout(() => { if (!roundOver) newCiv(); }, 2600);
 }
 function endRound(cause) {
-  if (roundOver) return;
-  roundOver = true;
-  if (civ && civ.state !== "gone") { log(`第 ${civ.no} 号文明毁于${cause}。行星本身也未能幸免。`, "bad"); deadCount++; bestLevel = Math.max(bestLevel, civ.level); civ.state = "gone"; }
-  log("—— 本局结束，3 秒后以同一构型重新开局 ——", "info");
-  updateCivButtons();
-  restartTimer = setTimeout(() => init(document.getElementById("preset").value, true), 3000);
+  if (roundOver) return; roundOver = true;
+  if (civ && civ.state !== "gone") { log(`第 ${civ.no} 号文明毁于${cause}。行星本身也未能幸免。`, "bad"); deadCount++; civ.state = "gone"; }
+  log("—— 本局结束，3 秒后以同一构型重新开局 ——", "info"); updateCivButtons();
+  setTimeout(() => init($("preset").value, true), 3000);
+}
+function dehydrate(silent) {
+  if (!civ || civ.state !== "active") return;
+  civ.state = "dehydrated"; civ.storedPop = civ.pop;
+  log(`第 ${civ.no} 号文明全民脱水！在稳定纪元回来之前，他们只是仓库里的人形纤维。`, "info");
+  if (!silent) toast("🧊 全民脱水", "文明已存入仓库。等待稳定纪元，浸泡复苏。");
+  unlock("dry1"); updateCivButtons();
+}
+function soak() {
+  if (!civ || civ.state !== "dehydrated") return;
+  if (tempC < -45 || tempC > 60) { toast("⚠️ 现在浸泡等于送死", "外面的温度还不允许生命存在。"); return; }
+  civ.state = "active"; civ.pop = Math.max(60, civ.storedPop * soakRate());
+  log(`浸泡完成，第 ${civ.no} 号文明复苏，人口恢复至 ${Math.round(civ.pop)} 万（脱水工艺保留率 ${Math.round(soakRate()*100)}%）。`, "good");
+  unlock("soak1"); updateCivButtons();
+}
+function updateCivButtons() {
+  const d = $("btnDehydrate"), s = $("btnSoak");
+  if (!civ) { d.disabled = s.disabled = true; return; }
+  d.disabled = civ.state !== "active" || MODE === "sandbox";
+  s.disabled = civ.state !== "dehydrated";
+  d.textContent = civ.state === "dehydrated" ? "🧊 已脱水（等待纪元）" : "🧊 全民脱水";
+}
+
+// ================= 环境 =================
+const TILT = 0.41;                       // 行星自转轴倾角（弧度），制造季节感
+const AXIS = [Math.sin(TILT), Math.cos(TILT), 0];
+function observerNormal() {
+  // 纬度 35° 观察者随自转的法向
+  const e1 = [Math.cos(TILT), -Math.sin(TILT), 0], e2 = [0, 0, 1], lat = 0.61;
+  const c = Math.cos(rot) * Math.cos(lat), s = Math.sin(rot) * Math.cos(lat), a = Math.sin(lat);
+  return [e1[0]*c + AXIS[0]*a, e1[1]*c + AXIS[1]*a, e2[2]*s + AXIS[2]*a];
 }
 function environment(dt) {
-  // 辐射通量：与距离平方成反比，参考距离 4.1 处单日通量 = 1
-  flux = 0;
-  suns.forEach((s, i) => {
-    const d = Math.max(0.35, Math.hypot(s.x - planet.x, s.y - planet.y));
-    dists[i] = d; flux += (4.1 / d) * (4.1 / d);
+  flux = 0; dists = []; sunElev = []; sunAz = [];
+  const n = observerNormal();
+  suns.forEach(s => {
+    const d = Math.max(0.35, dist(planet.p, s.p));
+    dists.push(d); flux += (4.1 / d) * (4.1 / d);
+    const dir = [(s.p[0]-planet.p[0])/d, (s.p[1]-planet.p[1])/d, (s.p[2]-planet.p[2])/d];
+    sunElev.push(dir[0]*n[0] + dir[1]*n[1] + dir[2]*n[2]);
+    sunAz.push(Math.atan2(dir[2], dir[0]));
   });
-  const tEq = 283 * Math.pow(flux, 0.25) - 273.15;      // 平衡温度（°C）
-  tempC += (tEq - tempC) * (1 - Math.exp(-dt / 0.9));   // 热惯性：温度变化滞后于通量
+  visibleSuns = sunElev.filter(e => e > 0).length;
+  const tEq = 283 * Math.pow(flux, 0.25) - 273.15;
+  tempC += (tEq - tempC) * (1 - Math.exp(-dt / 0.9));
   rot += 2 * Math.PI * dt / DAY;
-  visibleSuns = 0;
-  suns.forEach((s, i) => {
-    const az = Math.atan2(s.y - planet.y, s.x - planet.x);
-    sunElev[i] = Math.cos(az - rot);
-    if (sunElev[i] > 0) visibleSuns++;
-  });
-  // 纪元判定：每 0.05 年采样一次，窗口 80 个样点 = 近 4 年
-  if (simTime - lastEraSample >= YEAR * 0.05) { lastEraSample = simTime; eraSamples.push(tempC); if (eraSamples.length > 80) eraSamples.shift(); }
-  if (eraSamples.length > 40) {
-    const ok = eraSamples.filter(t => t >= -12 && t <= 42).length / eraSamples.length;
-    const extreme = eraSamples.some(t => t > 75 || t < -70);
-    const next = (ok > 0.75 && !extreme) ? "稳定纪元" : "混沌纪元";
-    if (next !== era) { era = next; log(era === "稳定纪元" ? "太阳运行规律渐显，稳定纪元开始了。" : "太阳的运行重新陷入不可预测，混沌纪元降临。", era === "稳定纪元" ? "good" : "bad"); }
+  if (simTime - lastEraSample >= YEAR * 0.05) {
+    lastEraSample = simTime; eraSamples.push(tempC); if (eraSamples.length > 80) eraSamples.shift();
+    if (eraSamples.length > 40) {
+      const lo = -12 - domeBand(), hi = 42 + domeBand();
+      const ok = eraSamples.filter(t => t >= lo && t <= hi).length / eraSamples.length;
+      const extreme = eraSamples.some(t => t > 75 + domeBand() || t < -70 - domeBand());
+      const next = (ok > 0.75 && !extreme) ? "稳定纪元" : "混沌纪元";
+      if (next !== era) {
+        era = next; eraSince = simTime;
+        log(era === "稳定纪元" ? "太阳运行规律渐显，稳定纪元开始了。" : "太阳的运行重新陷入不可预测，混沌纪元降临。", era === "稳定纪元" ? "good" : "bad");
+        if (era === "稳定纪元" && MODE === "civ") maybeEvent("eraStable");
+      }
+    }
   }
-  // 极端计时
   heatTime = tempC > 75 ? heatTime + dt/YEAR : 0;
   coldTime = tempC < -60 ? coldTime + dt/YEAR : 0;
-  tripleTime = (visibleSuns === 3 && tempC > 55) ? tripleTime + dt/YEAR : 0;
+  tripleTime = (visibleSuns >= 3 && tempC > 55) ? tripleTime + dt/YEAR : 0;
+  stableStreak = era === "稳定纪元" ? stableStreak + dt/YEAR : 0;
 }
 function civStep(dt) {
-  const dy = dt / YEAR; totalYears += dy;
-  if (!civ || civ.state === "gone") return;
+  const dy = dt / YEAR; civAge += dy;
+  if (MODE === "sandbox" || !civ || civ.state === "gone") return;
+  if (civAge >= 40) unlock("long40");
   if (civ.state === "dehydrated") {
-    if (era === "稳定纪元") document.getElementById("civHint").textContent = "稳定纪元已到！现在浸泡，文明可以复苏并继续发展。";
+    if (era === "稳定纪元") $("civHint").textContent = "稳定纪元已到！现在浸泡，文明可以复苏并继续发展。";
     return;
   }
   if (era === "稳定纪元") {
-    civ.pop = Math.min(9000, civ.pop * (1 + 0.05 * dy));
-    civ.progress += dy * (9 + civ.pop / 600) * (1 + deadCount * 0.12);   // 遗迹启示：毁灭过的文明重生更快
-    if (civ.progress >= 100 && civ.level < LEVELS.length - 1) {
-      civ.level++; civ.progress = 0; bestLevel = Math.max(bestLevel, civ.level);
-      log(`第 ${civ.no} 号文明进入${LEVELS[civ.level]}！`, "good");
-      if (civ.level === LEVELS.length - 1 && !won) { won = true; log(`🎉 通关：第 ${civ.no} 号文明活着进入原子时代！此前共毁灭 ${deadCount} 个文明。`, "good"); }
+    civ.pop = Math.min(12000, civ.pop * (1 + 0.05 * dy));
+    civ.progress += dy * (9 + civ.pop / 600) * (1 + deadCount * 0.12);
+    science += dy * (2 + civ.pop / 1500 + civ.level * 0.8);
+    if (civ.progress >= 100) {
+      if (civ.level >= LEVELS.length - 1) { civ.progress = 100; }
+      else if (civ.level === LEVELS.length - 2 && techLv.physics < 1) {
+        civ.progress = 99;
+        $("civHint").textContent = "文明撞上了看不见的墙：没有基础物理，原子时代的大门推不开。去「科技」页点亮它。";
+      } else {
+        civ.level++; civ.progress = 0; bestLevel = Math.max(bestLevel, civ.level);
+        log(`第 ${civ.no} 号文明进入${LEVELS[civ.level]}！${CHAPTERS[civ.level]}`, "story");
+        toast("🎉 " + LEVELS[civ.level], CHAPTERS[civ.level]);
+        if (civ.level === 4) unlock("info");
+        if (civ.level === LEVELS.length - 1 && !won) { won = true; unlock("win"); toast("🏆 通关！", `第 ${civ.no} 号文明活着进入原子时代。此前共毁灭 ${deadCount} 个文明——给岁月以文明。`); }
+        if (civ.level === 3 && !firedEvents.humanPC) maybeEvent("humanPC", true);
+      }
     }
-  } else {
+  } else if (era === "混沌纪元") {
     if (tempC > 55 || tempC < -35) civ.pop = Math.max(0, civ.pop * (1 - 0.30 * dy));
     else civ.pop = Math.max(0, civ.pop * (1 - 0.03 * dy));
     if (civ.pop < 1) { endCiv("混沌纪元的严酷气候"); return; }
   }
-  if (tripleTime > 0.04) { endCiv("三日凌空"); return; }
-  if (heatTime > 0.30) { endCiv("酷热"); return; }
-  if (coldTime > 0.30) { endCiv("严寒长夜"); return; }
+  const lf = lethalFactor();
+  if (tripleTime > 0.04 * lf) { civDying("三日凌空"); return; }
+  if (heatTime > 0.30 * lf) { civDying("酷热"); return; }
+  if (coldTime > 0.30 * lf) { civDying("严寒长夜"); return; }
 }
 function worldChecks() {
   if (Math.min(...dists) < 0.30) endRound("坠入太阳");
   else if (Math.min(...dists) > 45) endRound("被甩出三体星系，在宇宙中流浪");
+  comets = comets.filter(c => {
+    if (dist(c.p, planet.p) < 0.45) { cometHit(c); scene.remove(c.mesh); return false; }
+    if (dist(c.p, com()) > 90) { scene.remove(c.mesh); return false; }
+    return true;
+  });
 }
-function dehydrate() {
-  if (!civ || civ.state !== "active") return;
-  civ.state = "dehydrated"; civ.storedPop = civ.pop;
-  log(`第 ${civ.no} 号文明全民脱水！浸泡是唯一的生路——在稳定纪元回来之前，他们只是仓库里的人形纤维。`, "info");
-  updateCivButtons();
-}
-function soak() {
-  if (!civ || civ.state !== "dehydrated") return;
-  if (tempC < -45 || tempC > 60) { log("现在浸泡等于送死：外面的温度还不允许生命存在。", "bad"); return; }
-  civ.state = "active"; civ.pop = Math.max(60, civ.storedPop * 0.6);
-  log(`浸泡完成，第 ${civ.no} 号文明复苏，人口恢复至 ${Math.round(civ.pop)} 万。`, "good");
-  updateCivButtons();
-}
-function updateCivButtons() {
-  const d = document.getElementById("btnDehydrate"), s = document.getElementById("btnSoak");
-  if (!civ) { d.disabled = s.disabled = true; return; }
-  d.disabled = civ.state !== "active";
-  s.disabled = civ.state !== "dehydrated";
-  d.textContent = civ.state === "dehydrated" ? "🧊 已脱水（等待稳定纪元）" : "🧊 全民脱水（躲灾）";
+function cometHit() {
+  if (MODE === "civ" && civ && civ.state === "active") {
+    toast("☄️ 彗星撞击！", "撞击点燃了天空，文明在冲击与严冬中挣扎。");
+    if (!civDying("彗星撞击")) log("彗星撞击被地下城市与全民动员扛了过去。", "good");
+  } else log("一颗彗星撞上了行星，海洋沸腾又冻结。", "bad");
 }
 
-// ============ 渲染 ============
-const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
-const sky = document.getElementById("sky").getContext("2d");
-const chart = document.getElementById("chart").getContext("2d");
-let trails = { s0: [], s1: [], s2: [], p: [] }, starsBg = [];
-function makeStars() { starsBg = Array.from({ length: 150 }, () => [Math.random(), Math.random(), Math.random() * 1.4 + 0.3]); }
-function draw() {
-  const W = cv.width, H = cv.height;
-  const cx = (suns[0].x + suns[1].x + suns[2].x) / 3, cy = (suns[0].y + suns[1].y + suns[2].y) / 3;
-  const scale = W / 27;
-  const X = wx => W/2 + (wx - cx) * scale, Y = wy => H/2 - (wy - cy) * scale;
-  ctx.fillStyle = "#05060a"; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "#cfd4e0";
-  starsBg.forEach(([x, y, r]) => { ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(x*W, y*H, r, 0, 7); ctx.fill(); });
-  ctx.globalAlpha = 1;
-  const showTrails = document.getElementById("trails").checked;
-  const drawTrail = (tr, color) => {
-    if (!showTrails || tr.length < 2) return;
-    ctx.strokeStyle = color; ctx.lineWidth = 1.4; ctx.beginPath();
-    tr.forEach(([x, y], i) => i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)));
-    ctx.globalAlpha = 0.35; ctx.stroke(); ctx.globalAlpha = 1;
-  };
-  suns.forEach((s, i) => drawTrail(trails["s" + i], s.color));
-  drawTrail(trails.p, "#5db9ff");
-  suns.forEach(s => {
-    const x = X(s.x), y = Y(s.y), r = 15;
-    const g = ctx.createRadialGradient(x, y, 2, x, y, r * 3.4);
-    g.addColorStop(0, s.color); g.addColorStop(0.35, s.color + "aa"); g.addColorStop(1, "transparent");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 3.4, 0, 7); ctx.fill();
-    ctx.fillStyle = "#fff7dd"; ctx.beginPath(); ctx.arc(x, y, r * 0.55, 0, 7); ctx.fill();
-  });
-  // 行星
-  const px = X(planet.x), py = Y(planet.y);
-  const pg = ctx.createRadialGradient(px, py, 1, px, py, 16);
-  pg.addColorStop(0, "#9fd8ff"); pg.addColorStop(0.5, "#2e7fd0aa"); pg.addColorStop(1, "transparent");
-  ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px, py, 16, 0, 7); ctx.fill();
-  ctx.fillStyle = tempC > 60 ? "#ff9a5c" : tempC < -40 ? "#cfe8ff" : "#57b6ff";
-  ctx.beginPath(); ctx.arc(px, py, 6, 0, 7); ctx.fill();
-  if (civ && civ.state === "dehydrated") { ctx.strokeStyle = "#ffd34d"; ctx.strokeRect(px - 10, py - 10, 20, 20); }
-  // 天空条
-  const sw = sky.canvas.width, sh = sky.canvas.height;
-  const grad = sky.createLinearGradient(0, 0, 0, sh);
-  if (visibleSuns === 0) { grad.addColorStop(0, "#060a18"); grad.addColorStop(1, "#0d1430"); }
-  else { grad.addColorStop(0, "#3a6ea8"); grad.addColorStop(1, "#a8c8e8"); }
-  sky.fillStyle = grad; sky.fillRect(0, 0, sw, sh);
-  suns.forEach((s, i) => {
-    if (sunElev[i] < -0.15) return;
-    const az = Math.atan2(s.y - planet.y, s.x - planet.x);
-    let rel = (az - rot) % (2*Math.PI); if (rel < 0) rel += 2*Math.PI;
-    const sx = rel / (2*Math.PI) * sw, sy2 = sh * 0.75 - sunElev[i] * sh * 0.5;
-    const sr = 9 + 26 * Math.max(0.12, (4.1 / dists[i]) * 0.24);
-    const g2 = sky.createRadialGradient(sx, sy2, 1, sx, sy2, sr * 2);
-    g2.addColorStop(0, "#fff7dd"); g2.addColorStop(0.4, s.color + "bb"); g2.addColorStop(1, "transparent");
-    sky.fillStyle = g2; sky.beginPath(); sky.arc(sx, sy2, sr * 2, 0, 7); sky.fill();
-  });
-  sky.fillStyle = "#1a1410"; sky.fillRect(0, sh * 0.82, sw, sh * 0.18);
-  sky.fillStyle = "#e8e8ec"; sky.font = "12px sans-serif";
-  sky.fillText(visibleSuns === 0 ? "长夜：地平线上一颗太阳也没有" : `地平线上有 ${visibleSuns} 颗太阳`, 8, sh - 6);
-  // 气温图
-  const cw = chart.canvas.width, chh = chart.canvas.height;
-  chart.fillStyle = "#0b0c10"; chart.fillRect(0, 0, cw, chh);
-  const t2y = t => chh - (Math.max(-110, Math.min(170, t)) + 110) / 280 * chh;
-  chart.fillStyle = "#2e9e5733"; chart.fillRect(0, t2y(42), cw, t2y(-12) - t2y(42));
-  chart.strokeStyle = "#3a3b46"; chart.beginPath(); chart.moveTo(0, t2y(0)); chart.lineTo(cw, t2y(0)); chart.stroke();
-  if (tempHist.length > 1) {
-    chart.strokeStyle = "#ffd34d"; chart.lineWidth = 1.6; chart.beginPath();
-    tempHist.forEach((t, i) => { const x = i / 239 * cw; i ? chart.lineTo(x, t2y(t)) : chart.moveTo(x, t2y(t)); });
-    chart.stroke();
+// ================= 历法预报（克隆系统向前积分） =================
+let forecast = null, forecastAt = -99;
+function computeForecast() {
+  const yrs = forecastYears(); if (!yrs) { forecast = null; return; }
+  const saveSuns = suns, savePlanet = planet, saveComets = comets;
+  const clone = JSON.parse(JSON.stringify({ suns, planet }));
+  suns = clone.suns; planet = clone.planet; comets = [];
+  let S = packState(), t = 0, T = tempC;
+  const pts = [], horizon = yrs * YEAR, stepDt = 0.008;
+  let sampleAt = 0;
+  while (t < horizon) {
+    S = rk4(S, stepDt); unpackState(S); t += stepDt;
+    let f = 0; suns.forEach(s => { const d = Math.max(0.35, dist(planet.p, s.p)); f += (4.1/d)*(4.1/d); });
+    const tEq = 283 * Math.pow(f, 0.25) - 273.15;
+    T += (tEq - T) * (1 - Math.exp(-stepDt / 0.9));
+    if (t >= sampleAt) { sampleAt += YEAR * 0.1; pts.push(T); }
   }
-  chart.fillStyle = "#9a9aa5"; chart.font = "11px sans-serif";
-  chart.fillText("绿色带 = 宜居温度", 8, 14);
-  chart.fillText(`${Math.round(tempC)}°C`, cw - 46, t2y(tempC) - 4);
+  suns = saveSuns; planet = savePlanet; comets = saveComets;
+  forecast = pts; forecastAt = simTime;
 }
+
+// ================= 剧情事件 =================
+let modalOpen = false;
+function showEvent(title, text, choices) {
+  modalOpen = true;
+  $("mTitle").textContent = title; $("mText").textContent = text;
+  const box = $("mChoices"); box.innerHTML = "";
+  choices.forEach(ch => {
+    const b = document.createElement("button");
+    b.className = "choice"; b.innerHTML = ch.label + (ch.desc ? `<small>${ch.desc}</small>` : "");
+    b.onclick = () => { $("modal").style.display = "none"; modalOpen = false; ch.apply && ch.apply(); refreshPanel(); renderTechs(); };
+    box.appendChild(b);
+  });
+  $("modal").style.display = "flex";
+}
+function maybeEvent(kind, force) {
+  if (MODE !== "civ" || !civ || civ.state !== "active" || modalOpen) return;
+  const yr = simTime / YEAR;
+  if (!force && yr - lastEventYear < 2) return;
+  eventSeed = (eventSeed * 1103515245 + 12345) % 2147483648;
+  const rnd = eventSeed / 2147483648;
+  const E = [];
+  if (kind === "eraStable") E.push({
+    title: "🌅 稳定纪元 · 第一个清晨",
+    text: "太阳按时升起，已经第九十天了。田野里，人们第一次敢把种子埋进土里，而不是藏进山洞。议事会问你：这个纪元，我们先要什么？",
+    choices: [
+      { label: "繁衍优先", desc: "人口 +25%", apply: () => { civ.pop = Math.min(12000, civ.pop * 1.25); log("稳定纪元的第一项决议：繁衍。婴儿的哭声盖过了风声。", "info"); } },
+      { label: "科研优先", desc: "科研点 +25", apply: () => { science += 25; log("稳定纪元的第一项决议：科研。观测塔连夜点灯。", "info"); } },
+      { label: "深挖洞，广积粮", desc: "临时掩体火种 +1（限本号文明）", apply: () => { shieldBonus += 1; log("稳定纪元的第一项决议：筑城。他们说，先活下去，再谈星辰。", "info"); } }
+    ] });
+  if (kind === "humanPC") E.push({
+    title: "🧮 人列计算机",
+    text: "电气时代的某天，三千万士兵在校场上举起黑白小旗——用血肉之躯组成的计算机，开始为文明演算太阳的轨道。你站在点将台上，号令一下，文明的算力将超过所有机器。",
+    choices: [
+      { label: "全军演算！", desc: "科技进度 +30%，人口 -15%", apply: () => { civ.progress = Math.min(99, civ.progress + 30); civ.pop *= 0.85; science += 10; log("人列计算机运转了一整季。算出的轨道图，至今挂在历法局墙上。", "story"); } },
+      { label: "稳妥推进", desc: "科研点 +20", apply: () => { science += 20; log("你拒绝了疯狂的计划。将军们很失望，但活着的人更多了。", "info"); } }
+    ] });
+  if (kind === "any") {
+    if (era === "混沌纪元" && coldTime > 0.05) E.push({
+      title: "❄️ 严寒预警",
+      text: "历法局的老人盯着温度计说：真正的冷还没到。地窖里的存粮只够烧四十天。是烧掉未来取暖，还是把文明存进仓库？",
+      choices: [
+        { label: "立即全民脱水", desc: "躲进仓库，等冷过去", apply: () => dehydrate() },
+        { label: "燃烧储备取暖", desc: "科研点 -15，严寒致命计时减半", apply: () => { science = Math.max(0, science - 15); coldTime *= 0.4; log("图书馆的书烧了三天三夜。字没了，人还在。", "info"); } },
+        { label: "硬抗", desc: "什么都不做", apply: () => log("人们裹紧一切能裹的东西，决定和老天赌一把。", "info") }
+      ] });
+    if (era === "混沌纪元" && heatTime > 0.05) E.push({
+      title: "🔥 大地在冒烟",
+      text: "河床裂成了龟甲，湖底的鱼在泥里张着嘴。祭司说太阳要下来了，工程师说脱水仓的电只够启动一次。你选择？",
+      choices: [
+        { label: "立即全民脱水", desc: "躲进仓库", apply: () => dehydrate() },
+        { label: "全民迁入地下", desc: "需要地下城市科技；没有则人口 -20%", apply: () => { if (techLv.bunker > 0) { heatTime = 0; log("地下城市的大门缓缓合上，地面交给了太阳。", "good"); } else { civ.pop *= 0.8; log("没有地下城的人们挤在岩洞里，热浪还是钻了进来。", "bad"); } } },
+        { label: "向太阳祈祷", desc: "人口 +5%（士气），无实际效果", apply: () => { civ.pop *= 1.05; log("祈祷很虔诚。太阳照常升起，毫不留情。", "info"); } }
+      ] });
+    if (era === "稳定纪元" && stableStreak > 6) E.push({
+      title: "🌾 黄金时代",
+      text: "连续六年的风调雨顺。仓库满了，学校满了，连历法局都开始放假。黄金时代最危险的敌人，是黄金时代本身的傲慢。",
+      choices: [
+        { label: "人口爆炸", desc: "人口 +40%，科技进度 -10%", apply: () => { civ.pop = Math.min(12000, civ.pop * 1.4); civ.progress = Math.max(0, civ.progress - 10); } },
+        { label: "科技跃进", desc: "科技进度 +25%，人口 -10%", apply: () => { civ.progress = Math.min(99, civ.progress + 25); civ.pop *= 0.9; } },
+        { label: "艺术与节庆", desc: "科研点 +15，且本号文明士气大振（人口 +10%）", apply: () => { science += 15; civ.pop = Math.min(12000, civ.pop * 1.1); log("黄金时代的歌谣，后来被刻进了地下城市的墙。", "story"); } }
+      ] });
+    if (era === "混沌纪元") E.push({
+      title: "✨ 飞星异象",
+      text: "今夜，一颗太阳在天空中的位置整整一刻钟没有移动——飞星不动。观测员的手在抖：这在旧历里，是大灾的前兆。",
+      choices: [
+        { label: "组织大观测", desc: "科研点 +20", apply: () => { science += 20; log("三千架望远镜转向飞星。恐惧被好奇心吃掉了一半。", "info"); } },
+        { label: "安抚民众", desc: "人口 +10%", apply: () => { civ.pop = Math.min(12000, civ.pop * 1.1); log("你告诉人们：不动的星星，只是在远处喘气。", "info"); } },
+        { label: "抢修掩体", desc: "科研点 -30，临时火种 +1", apply: () => { if (science >= 30) { science -= 30; shieldBonus += 1; log("掩体抢修完毕。但愿用不上。", "info"); } else { log("科研点不足，抢修计划搁浅。", "bad"); } } }
+      ] });
+  }
+  if (!E.length) return;
+  const ev = E[Math.floor(rnd * E.length) % E.length];
+  lastEventYear = yr;
+  if (kind === "humanPC") firedEvents.humanPC = true;
+  showEvent(ev.title, ev.text, ev.choices);
+}
+
+// ================= 日志 / 提示 =================
 function log(msg, cls = "") {
-  const ul = document.getElementById("log");
+  const ul = $("log"); if (!ul) return;
   const li = document.createElement("li");
   li.className = cls; li.textContent = `[${(simTime / YEAR).toFixed(1)} 年] ` + msg;
   ul.prepend(li);
-  while (ul.children.length > 30) ul.lastChild.remove();
+  while (ul.children.length > 40) ul.lastChild.remove();
 }
-function refreshPanel() {
-  document.getElementById("stYear").textContent = (simTime / YEAR).toFixed(1) + " 年";
-  const eraEl = document.getElementById("stEra");
-  eraEl.textContent = era; eraEl.className = era === "稳定纪元" ? "era-stable" : "era-chaotic";
-  document.getElementById("stTemp").textContent = tempC.toFixed(0) + " °C";
-  document.getElementById("stSuns").textContent = visibleSuns + " 颗" + (visibleSuns === 3 ? "（三日凌空！）" : visibleSuns === 2 ? "（双日凌空）" : "");
-  document.getElementById("stDay").textContent = visibleSuns === 0 ? "夜" : "昼";
-  document.getElementById("stDist").textContent = Math.min(...dists).toFixed(2);
-  if (civ) {
-    document.getElementById("stCivNo").textContent = "第 " + civ.no + " 号";
-    document.getElementById("stCivLvl").textContent = LEVELS[civ.level] + (civ.state === "active" && era === "稳定纪元" ? `（${Math.floor(civ.progress)}%）` : "");
-    document.getElementById("stPop").textContent = civ.state === "dehydrated" ? Math.round(civ.storedPop) + "（纤维）" : Math.round(civ.pop);
-    document.getElementById("stCivState").textContent = { active: "正常生活", dehydrated: "已脱水", gone: "已毁灭" }[civ.state];
-  }
-  document.getElementById("stDead").textContent = deadCount;
-  document.getElementById("stBest").textContent = LEVELS[bestLevel];
+let toastTimer = null;
+function toast(tt, tx) {
+  const el = $("toast"); el.querySelector(".tt").textContent = tt; el.querySelector(".tx").textContent = tx;
+  el.style.display = "block";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.style.display = "none", 4200);
 }
 
-// ============ 主循环 ============
-let running = true, lastSample = 0;
+// ================= 3D 场景 =================
+const container = $("scene");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+container.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x04050a);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 900);
+camera.position.set(0, 16, 30);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+let composer = null;
+try {
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.15, 0.7, 0.12);
+  composer.addPass(bloom); composer.addPass(new OutputPass());
+} catch (e) { composer = null; }
+// 星空
+{
+  const N = 2600, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const r = 320 + Math.random() * 260, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    pos[3*i] = r * Math.sin(ph) * Math.cos(th); pos[3*i+1] = r * Math.cos(ph); pos[3*i+2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xbdc8e8, size: 1.5, sizeAttenuation: false, transparent: true, opacity: 0.85 })));
+}
+scene.add(new THREE.AmbientLight(0x8899bb, 0.5));
+function glowTexture() {
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const x = c.getContext("2d"), g = x.createRadialGradient(64, 64, 2, 64, 64, 64);
+  g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.25, "rgba(255,255,255,.55)"); g.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+const glowTex = glowTexture();
+const sunMeshes = [], sunLights = [];
+function buildSunMeshes() {
+  sunMeshes.forEach(m => { scene.remove(m.grp); }); sunMeshes.length = 0;
+  sunLights.forEach(l => scene.remove(l)); sunLights.length = 0;
+  suns.forEach(s => {
+    const grp = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.85, 40, 40),
+      new THREE.MeshBasicMaterial({ color: 0xfff6d8 }));
+    const mid = new THREE.Mesh(new THREE.SphereGeometry(0.98, 40, 40),
+      new THREE.MeshBasicMaterial({ color: s.color, transparent: true, opacity: 0.85 }));
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: s.color, transparent: true, opacity: 0.95, depthWrite: false }));
+    spr.scale.setScalar(7.5);
+    const spr2 = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: s.color, transparent: true, opacity: 0.35, depthWrite: false }));
+    spr2.scale.setScalar(17);
+    grp.add(core, mid, spr, spr2); scene.add(grp);
+    const li = new THREE.PointLight(s.color, 2.4, 0, 0); scene.add(li);
+    sunMeshes.push({ grp, spr, spr2 }); sunLights.push(li);
+  });
+  const pick = $("sunPick"); pick.innerHTML = "";
+  suns.forEach((s, i) => { const o = document.createElement("option"); o.value = i; o.textContent = `${s.name}（质量 ${s.m.toFixed(2)}）`; pick.appendChild(o); });
+}
+// 行星：程序化纹理随气候重绘
+function planetTexture() {
+  const c = document.createElement("canvas"); c.width = 1024; c.height = 512;
+  const x = c.getContext("2d");
+  const cold = tempC < -25, hot = tempC > 45, warm = !cold && !hot;
+  x.fillStyle = cold ? "#7d94b8" : hot ? "#8a4a28" : "#1d4e79"; x.fillRect(0, 0, 1024, 512);
+  let seed = 1234; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  x.fillStyle = cold ? "#aebfd8" : hot ? "#c07a3a" : "#2e7d4f";
+  for (let i = 0; i < 26; i++) {
+    const cx = rnd() * 1024, cy = 90 + rnd() * 330;
+    for (let j = 0; j < 9; j++) { x.beginPath(); x.ellipse(cx + (rnd()-0.5)*130, cy + (rnd()-0.5)*60, 18 + rnd()*55, 10 + rnd()*30, rnd()*3, 0, 7); x.fill(); }
+  }
+  const ice = cold ? 200 : tempC < 5 ? 90 : 34;
+  const grd = x.createLinearGradient(0, 0, 0, 512);
+  grd.addColorStop(0, "rgba(240,248,255,.95)"); grd.addColorStop(ice/512, "rgba(240,248,255,.95)");
+  grd.addColorStop(ice/512 + 0.06, "rgba(240,248,255,0)"); grd.addColorStop(1 - ice/512 - 0.06, "rgba(240,248,255,0)");
+  grd.addColorStop(1 - ice/512, "rgba(240,248,255,.95)"); grd.addColorStop(1, "rgba(240,248,255,.95)");
+  x.fillStyle = grd; x.fillRect(0, 0, 1024, 512);
+  if (hot) { x.fillStyle = "rgba(255,90,20,.16)"; x.fillRect(0, 0, 1024, 512); }
+  if (warm) { x.fillStyle = "rgba(255,255,255,.05)"; x.fillRect(0, 0, 1024, 512); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+let planetTex = planetTexture(), planetClimate = "";
+const planetMesh = new THREE.Mesh(new THREE.SphereGeometry(0.55, 48, 48),
+  new THREE.MeshStandardMaterial({ map: planetTex, roughness: 0.85, metalness: 0.05 }));
+scene.add(planetMesh);
+const atmo = new THREE.Mesh(new THREE.SphereGeometry(0.62, 48, 48), new THREE.ShaderMaterial({
+  vertexShader: "varying vec3 vN; void main(){ vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+  fragmentShader: "varying vec3 vN; void main(){ float f = pow(1.0 - abs(vN.z), 2.6); gl_FragColor = vec4(0.35, 0.6, 1.0, 1.0) * f * 0.9; }",
+  transparent: true, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false }));
+scene.add(atmo);
+const cloudMesh = new THREE.Mesh(new THREE.SphereGeometry(0.575, 40, 40),
+  new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.28, roughness: 1, color: 0xffffff, depthWrite: false }));
+{
+  const c = document.createElement("canvas"); c.width = 512; c.height = 256; const x = c.getContext("2d");
+  x.clearRect(0, 0, 512, 256); let seed = 99; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  x.fillStyle = "rgba(255,255,255,.75)";
+  for (let i = 0; i < 130; i++) { x.beginPath(); x.ellipse(rnd()*512, rnd()*256, 12 + rnd()*38, 4 + rnd()*9, 0, 0, 7); x.fill(); }
+  const t = new THREE.CanvasTexture(c); cloudMesh.material.map = t; cloudMesh.material.needsUpdate = true;
+}
+scene.add(cloudMesh);
+// 轨迹
+const TRAIL_N = 340;
+let trailLines = [];
+function buildTrails() {
+  trailLines.forEach(t => { scene.remove(t.line); t.line.geometry.dispose(); });
+  trailLines = [];
+  const mk = color => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(TRAIL_N * 3), 3));
+    const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 }));
+    line.frustumCulled = false; scene.add(line);
+    return { line, pts: [] };
+  };
+  suns.forEach(s => trailLines.push(mk(s.color)));
+  trailLines.push(mk(0x5db9ff));
+}
+function pushTrail(idx, p) {
+  const t = trailLines[idx]; if (!t) return;
+  t.pts.push(p[0], p[1], p[2]);
+  if (t.pts.length > TRAIL_N * 3) t.pts.splice(0, t.pts.length - TRAIL_N * 3);
+  const attr = t.line.geometry.getAttribute("position");
+  for (let i = 0; i < t.pts.length; i++) attr.array[i] = t.pts[i];
+  attr.needsUpdate = true; t.line.geometry.setDrawRange(0, t.pts.length / 3);
+}
+let showTrails = true;
+function syncMeshes() {
+  const c = com();
+  suns.forEach((s, i) => {
+    const m = sunMeshes[i]; if (!m) return;
+    m.grp.position.set(s.p[0], s.p[1], s.p[2]);
+    sunLights[i].position.copy(m.grp.position);
+    const pulse = 1 + Math.sin(simTime * 3 + i * 2) * 0.03;
+    m.grp.scale.setScalar((0.75 + s.m * 0.35) * pulse);
+    if (frameNo % 2 === 0) pushTrail(i, s.p);
+  });
+  planetMesh.position.set(planet.p[0], planet.p[1], planet.p[2]);
+  atmo.position.copy(planetMesh.position); cloudMesh.position.copy(planetMesh.position);
+  cloudMesh.rotation.y += 0.0006; planetMesh.rotation.y = rot * 0.35;
+  if (frameNo % 2 === 0) pushTrail(suns.length, planet.p);
+  comets.forEach(cm => { if (cm.mesh) cm.mesh.position.set(cm.p[0], cm.p[1], cm.p[2]); });
+  return c;
+}
+
+// ================= 相机模式 =================
+let camMode = "free", frameNo = 0, surfacePan = 0;
+function applyCamera(c) {
+  if (camMode === "free") {
+    controls.enabled = true;
+    controls.target.lerp(new THREE.Vector3(c[0], c[1], c[2]), 0.04);
+  } else if (camMode === "planet") {
+    controls.enabled = true;
+    const target = new THREE.Vector3(planet.p[0], planet.p[1], planet.p[2]);
+    const delta = target.clone().sub(controls.target);
+    camera.position.add(delta); controls.target.copy(target);
+  } else {
+    controls.enabled = false;
+    const n = observerNormal();
+    const pos = new THREE.Vector3(planet.p[0] + n[0]*0.66, planet.p[1] + n[1]*0.66, planet.p[2] + n[2]*0.66);
+    surfacePan += 0.0007;
+    const up = new THREE.Vector3(n[0], n[1], n[2]);
+    let tan = new THREE.Vector3(1, 0, 0).cross(up).normalize();
+    if (tan.lengthSq() < 0.1) tan = new THREE.Vector3(0, 0, 1);
+    const look = pos.clone().add(tan.multiplyScalar(Math.cos(surfacePan)*6)).add(up.clone().multiplyScalar(0.8 + Math.sin(surfacePan)*0.4));
+    camera.position.copy(pos); camera.up.copy(up); camera.lookAt(look);
+  }
+  if (camMode !== "surface") camera.up.set(0, 1, 0);
+}
+
+// ================= 面板渲染 =================
+function drawSky2d() {
+  const cv = $("sky2d"), x = cv.getContext("2d"), W = cv.width, H = cv.height;
+  const grad = x.createLinearGradient(0, 0, 0, H);
+  if (visibleSuns === 0) { grad.addColorStop(0, "#060a18"); grad.addColorStop(1, "#101a3a"); }
+  else if (tempC > 55) { grad.addColorStop(0, "#a8542c"); grad.addColorStop(1, "#e8a05c"); }
+  else { grad.addColorStop(0, "#3a6ea8"); grad.addColorStop(1, "#a8c8e8"); }
+  x.fillStyle = grad; x.fillRect(0, 0, W, H);
+  suns.forEach((s, i) => {
+    if (sunElev[i] < -0.12) return;
+    let rel = (sunAz[i] - rot) % (2*Math.PI); if (rel < 0) rel += 2*Math.PI;
+    const sx = rel / (2*Math.PI) * W, sy = H*0.72 - sunElev[i] * H * 0.5;
+    const sr = 8 + 22 * Math.max(0.12, (4.1 / dists[i]) * 0.24);
+    const g2 = x.createRadialGradient(sx, sy, 1, sx, sy, sr*2);
+    g2.addColorStop(0, "#fff7dd"); g2.addColorStop(0.4, "rgba(255,200,80,.7)"); g2.addColorStop(1, "rgba(255,200,80,0)");
+    x.fillStyle = g2; x.beginPath(); x.arc(sx, sy, sr*2, 0, 7); x.fill();
+    x.fillStyle = "#fff7dd"; x.beginPath(); x.arc(sx, sy, sr*0.5, 0, 7); x.fill();
+  });
+  x.fillStyle = "#191411"; x.fillRect(0, H*0.8, W, H*0.2);
+  x.fillStyle = "#e8e8ec"; x.font = "13px sans-serif";
+  x.fillText(visibleSuns === 0 ? "长夜：地平线上一颗太阳也没有" : visibleSuns >= 3 ? `⚠ ${visibleSuns} 颗太阳同悬天空` : `地平线上有 ${visibleSuns} 颗太阳`, 10, H - 8);
+}
+function drawForecast() {
+  const cv = $("forecast"), x = cv.getContext("2d"), W = cv.width, H = cv.height;
+  x.fillStyle = "#0b0c10"; x.fillRect(0, 0, W, H);
+  if (!forecast) { x.fillStyle = "#3a3b46"; x.font = "15px sans-serif"; x.fillText("— 历法未立，未来不可知 —", 14, H/2 + 5); $("fcNote").textContent = "未掌握精确历法"; return; }
+  $("fcNote").textContent = `预报未来 ${forecastYears()} 年 · 每格 0.1 年`;
+  const n = forecast.length;
+  forecast.forEach((t, i) => {
+    const col = t > 75 || t < -70 ? "#d33" : t > 42 ? "#e8862e" : t < -12 ? "#3a7bd0" : "#2e9e57";
+    x.fillStyle = col; x.fillRect(i / n * W, 6, Math.max(2, W / n - 1), H - 18);
+  });
+  x.fillStyle = "#9a9aa5"; x.font = "11px sans-serif";
+  x.fillText("绿=宜居  蓝=严寒  橙=酷热  红=致命", 8, H - 2);
+}
+function worldEnergy() {
+  let ke = 0, pe = 0;
+  suns.forEach(s => ke += 0.5 * s.m * (s.v[0]**2 + s.v[1]**2 + s.v[2]**2));
+  for (let i = 0; i < suns.length; i++) for (let j = i+1; j < suns.length; j++)
+    pe -= G * suns[i].m * suns[j].m / Math.max(0.1, dist(suns[i].p, suns[j].p));
+  return ke + pe;
+}
+function refreshPanel() {
+  $("ckYear").textContent = (simTime / YEAR).toFixed(1) + " 年";
+  const eraEl = $("ckEra"); eraEl.textContent = era; eraEl.style.color = era === "稳定纪元" ? "#6fe08a" : era === "混沌纪元" ? "#ff7a6b" : "#eee";
+  $("ckTemp").textContent = tempC.toFixed(0) + " °C";
+  $("ckTemp").style.color = tempC > 60 ? "#ff7a6b" : tempC < -40 ? "#9fd0ff" : "#eee";
+  $("ckSuns").textContent = visibleSuns + " 颗" + (visibleSuns >= 3 ? " ⚠" : "");
+  if (civ) {
+    $("stCivNo").textContent = "第 " + civ.no + " 号";
+    $("stCivLvl").textContent = LEVELS[civ.level];
+    $("stPop").textContent = civ.state === "dehydrated" ? Math.round(civ.storedPop) + "（纤维）" : Math.round(civ.pop);
+    $("stCivState").textContent = { active: "正常生活", dehydrated: "已脱水", gone: "已毁灭" }[civ.state];
+    $("lvlBar").style.width = (civ.state === "active" ? civ.progress : 0) + "%";
+  }
+  $("stSci").textContent = Math.floor(science);
+  $("stShield").textContent = civ ? `${Math.max(0, shieldCharges() - civ.shieldsUsed)} / ${shieldCharges()}` : "0";
+  $("stDead").textContent = deadCount;
+  $("stEraAge").textContent = ((simTime - eraSince) / YEAR).toFixed(1) + " 年";
+  $("worldKv").innerHTML =
+    suns.map((s, i) => `${s.name}：距行星 <b>${dists[i] ? dists[i].toFixed(2) : "—"}</b> · 质量 <b>${s.m.toFixed(2)}</b>`).join("<br>") +
+    `<br>辐射通量 <b>${flux.toFixed(2)}</b>（地球≈1）<br>系统总能量 <b>${worldEnergy().toFixed(2)}</b><br>G = <b>${G.toFixed(2)}</b> · 引力幂次 <b>${GEXP.toFixed(2)}</b> · 太阳数量 <b>${suns.length}</b>`;
+}
+function renderTechs() {
+  const box = $("techList"); box.innerHTML = "";
+  TECHS.forEach(t => {
+    const lv = techLv[t.id], maxed = lv >= t.max, cost = maxed ? null : t.cost[lv];
+    const div = document.createElement("div"); div.className = "tech";
+    div.innerHTML = `<b>${t.name}</b> <span class="lv">${"●".repeat(lv)}${"○".repeat(t.max - lv)}</span><p>${t.desc}</p>`;
+    const b = document.createElement("button");
+    b.textContent = maxed ? "已达顶级" : `研究（${cost} 科研点）`;
+    b.disabled = maxed || science < cost;
+    b.onclick = () => {
+      if (science < cost) return;
+      science -= cost; techLv[t.id]++;
+      log(`科技突破：${t.name} 升至 ${techLv[t.id]} 级。`, "good");
+      if (t.id === "calendar") computeForecast();
+      renderTechs(); refreshPanel();
+    };
+    div.appendChild(b); box.appendChild(div);
+  });
+}
+function renderAchs() {
+  const box = $("achList"); box.innerHTML = "";
+  ACHS.forEach(([id, name]) => {
+    const s = document.createElement("span");
+    s.className = "ach" + (achDone[id] ? "" : " off"); s.textContent = (achDone[id] ? "🏆 " : "🔒 ") + name;
+    box.appendChild(s);
+  });
+}
+
+// ================= 主循环 =================
+let running = true, started = false;
 function step(dt) {
-  let st = packState();
-  st = rk4(st, dt);
-  unpackState(st);
+  let S = packState(); S = rk4(S, dt); unpackState(S);
   simTime += dt;
   environment(dt); civStep(dt); worldChecks();
-  const keys = ["s0", "s1", "s2"];
-  suns.forEach((s, i) => { trails[keys[i]].push([s.x, s.y]); if (trails[keys[i]].length > 240) trails[keys[i]].shift(); });
-  trails.p.push([planet.x, planet.y]); if (trails.p.length > 240) trails.p.shift();
-  if (simTime - lastSample > YEAR * 0.05) { lastSample = simTime; tempHist.push(tempC); if (tempHist.length > 240) tempHist.shift(); }
+  if (techLv.calendar > 0 && simTime - forecastAt > YEAR) computeForecast();
+  if (MODE === "civ" && !modalOpen && Math.random() < dt / YEAR * 0.13) maybeEvent("any");
 }
-function frame() {
-  if (running && !roundOver) {
-    const speed = parseFloat(document.getElementById("speed").value);
-    const steps = Math.round(55 * speed);
+function animate() {
+  requestAnimationFrame(animate);
+  frameNo++;
+  if (started && running && !modalOpen && !roundOver) {
+    const speed = parseFloat($("speed").value);
+    const steps = Math.min(1400, Math.round(55 * speed));
     for (let i = 0; i < steps; i++) step(0.004);
-    draw(); refreshPanel();
+    // 气候纹理：跨气候带时重绘行星表面
+    const climate = tempC < -25 ? "极寒" : tempC < 5 ? "寒冷" : tempC <= 45 ? "温和" : "炽热";
+    if (climate !== planetClimate) {
+      planetClimate = climate;
+      const old = planetMesh.material.map;
+      planetMesh.material.map = planetTexture(); planetMesh.material.needsUpdate = true;
+      if (old) old.dispose();
+    }
   }
-  requestAnimationFrame(frame);
+  if (started) {
+    const c = syncMeshes(); applyCamera(c);
+    if (frameNo % 6 === 0) { refreshPanel(); drawSky2d(); }
+    if (frameNo % 30 === 0) drawForecast();
+  }
+  controls.update();
+  if (composer) composer.render(); else renderer.render(scene, camera);
 }
-function init(presetName, keepCivNo) {
-  clearTimeout(restartTimer); roundOver = false; running = true;
-  document.getElementById("btnPause").textContent = "暂停";
+
+// ================= 初始化与控件 =================
+function zeroMomentum() {
+  let mx = 0, my = 0, mz = 0, M = 0;
+  suns.forEach(s => { mx += s.v[0]*s.m; my += s.v[1]*s.m; mz += s.v[2]*s.m; M += s.m; });
+  suns.forEach(s => { s.v[0] -= mx/M; s.v[1] -= my/M; s.v[2] -= mz/M; });
+}
+function init(presetName, keepCiv) {
   const p = PRESETS[presetName]();
-  suns = p.suns; planet = { ...p.planet };
+  suns = p.suns; planet = { ...p.planet }; comets.forEach(c => scene.remove(c.mesh)); comets = [];
   zeroMomentum();
-  simTime = 0; tempC = 8; rot = 0; era = "未知"; eraSamples = []; lastEraSample = -9; tempHist.length = 0;
-  trails = { s0: [], s1: [], s2: [], p: [] };
-  if (!keepCivNo) { deadCount = 0; bestLevel = 0; won = false; document.getElementById("log").innerHTML = ""; civ = null; }
-  totalYears = 0;
-  newCiv();
-  log(`新的一局开始：${document.querySelector(`#preset option[value="${presetName}"]`).textContent}。三个太阳已经就位。`, "info");
-  draw(); refreshPanel();
+  simTime = 0; tempC = 8; rot = 0; era = "未知"; eraSamples = []; lastEraSample = -9; eraSince = 0; stableStreak = 0;
+  heatTime = coldTime = tripleTime = 0; roundOver = false; running = true; forecastAt = -99;
+  $("btnPause").textContent = "⏸ 暂停";
+  if (!keepCiv) { deadCount = 0; bestLevel = 0; won = false; $("log").innerHTML = ""; civ = null; }
+  buildSunMeshes(); buildTrails();
+  planetClimate = "";
+  if (MODE === "civ") newCiv(); else { civ = { no: 0, level: 0, progress: 0, pop: 0, state: "active", storedPop: 0, shieldsUsed: 0 }; }
+  if (techLv.calendar > 0) computeForecast();
+  log(`新的一局开始：${$("preset").querySelector(`option[value="${presetName}"]`).textContent}。${suns.length} 个太阳已经就位。`, "info");
+  refreshPanel(); renderTechs(); drawForecast();
 }
-document.getElementById("preset").addEventListener("change", e => init(e.target.value, false));
-document.getElementById("btnRestart").addEventListener("click", () => init(document.getElementById("preset").value, false));
-document.getElementById("btnPause").addEventListener("click", e => { running = !running; e.target.textContent = running ? "暂停" : "继续"; });
-document.getElementById("speed").addEventListener("input", e => document.getElementById("speedVal").textContent = e.target.value + "×");
-document.getElementById("btnDehydrate").addEventListener("click", dehydrate);
-document.getElementById("btnSoak").addEventListener("click", soak);
-makeStars();
-init("chaotic", false);
-requestAnimationFrame(frame);
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll("[data-page]").forEach(p => p.hidden = p.dataset.page !== b.dataset.tab);
+});
+$("btnPause").onclick = () => { running = !running; $("btnPause").textContent = running ? "⏸ 暂停" : "▶ 继续"; };
+$("speed").oninput = e => $("speedVal").textContent = e.target.value + "×";
+$("btnCamFree").onclick = () => camMode = "free";
+$("btnCamPlanet").onclick = () => camMode = "planet";
+$("btnCamSurface").onclick = () => { camMode = "surface"; toast("👁 地表视角", "你正站在行星表面。看，太阳升起来了——也许不止一颗。"); };
+$("btnDehydrate").onclick = () => dehydrate();
+$("btnSoak").onclick = soak;
+$("btnRestart").onclick = () => init($("preset").value, false);
+$("preset").onchange = e => { $("startPreset").value = e.target.value; init(e.target.value, false); };
+// 沙盒
+$("sbG").oninput = e => { G = parseFloat(e.target.value); $("gVal").textContent = G.toFixed(2); unlock("g"); };
+$("sbExp").oninput = e => { GEXP = parseFloat(e.target.value); $("expVal").textContent = GEXP.toFixed(2); unlock("g"); };
+$("sunPick").onchange = e => { const s = suns[+e.target.value]; if (s) { $("sbMass").value = s.m; $("mVal").textContent = s.m.toFixed(2); } };
+$("sbMass").oninput = e => {
+  const s = suns[+$("sunPick").value]; if (!s) return;
+  s.m = parseFloat(e.target.value); $("mVal").textContent = s.m.toFixed(2);
+  $("sunPick").querySelector(`option[value="${$("sunPick").value}"]`).textContent = `${s.name}（质量 ${s.m.toFixed(2)}）`;
+};
+$("btnAddSun").onclick = () => {
+  if (suns.length >= 5) { toast("⚠️ 最多 5 颗太阳", "再多，积分器和文明都要崩溃了。"); return; }
+  const c = com(), M = suns.reduce((a, s) => a + s.m, 0);
+  const a = Math.random() * Math.PI * 2, r = 11 + Math.random() * 4;
+  const p = [c[0] + r*Math.cos(a), (Math.random()-0.5)*3, c[2] + r*Math.sin(a)];
+  const sp = Math.sqrt(G * M / r);
+  suns.push(mkSun(p, [-Math.sin(a)*sp, 0, Math.cos(a)*sp]));
+  buildSunMeshes(); buildTrails();
+  log(`一颗新的太阳被放进了这个世界。现在是 ${suns.length} 日凌空的时代。`, "info");
+  if (suns.length >= 4) unlock("four");
+  refreshPanel();
+};
+$("btnDelSun").onclick = () => {
+  if (suns.length <= 1) { toast("⚠️ 至少留一颗太阳", "没有太阳，就没有故事了。"); return; }
+  const i = +$("sunPick").value, [gone] = suns.splice(i, 1);
+  buildSunMeshes(); buildTrails();
+  log(`${gone.name} 被移除了。剩下的太阳重新分配了引力与天空。`, "info");
+  refreshPanel();
+};
+$("btnKick").onclick = () => {
+  const s = suns[Math.floor(Math.random() * suns.length)];
+  s.v[0] += (Math.random()-0.5)*0.5; s.v[1] += (Math.random()-0.5)*0.3; s.v[2] += (Math.random()-0.5)*0.5;
+  log(`💥 ${s.name} 被狠狠踢了一脚。轨道将重新洗牌——混沌，开始了。`, "bad");
+};
+$("btnComet").onclick = () => {
+  const c0 = com(), a = Math.random() * Math.PI * 2;
+  const p = [planet.p[0] + 26*Math.cos(a), (Math.random()-0.5)*6, planet.p[2] + 26*Math.sin(a)];
+  const miss = (Math.random()-0.5) * 5;
+  const dir = [planet.p[0]-p[0], 0, planet.p[2]-p[2]], L = Math.hypot(dir[0], dir[2]);
+  const v = [dir[0]/L * 0.85 - dir[2]/L * miss * 0.05, 0, dir[2]/L * 0.85 + dir[0]/L * miss * 0.05];
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 20), new THREE.MeshBasicMaterial({ color: 0xcfe8ff }));
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x9fd0ff, transparent: true, opacity: 0.8, depthWrite: false }));
+  spr.scale.setScalar(2.6); mesh.add(spr); scene.add(mesh);
+  comets.push({ p, v, mesh });
+  log("☄️ 一颗彗星拖着长尾，朝行星的方向来了。", "info");
+  unlock("comet");
+};
+$("btnRespawn").onclick = () => {
+  const c = com(), M = suns.reduce((a, s) => a + s.m, 0);
+  planet.p = [c[0] + 8.2, c[1], c[2]]; planet.v = [0, 0, Math.sqrt(G * M / 8.2)];
+  trails_reset_planet(); log("🌍 行星被放回一条崭新的轨道。文明的故事可以继续了。", "info");
+};
+function trails_reset_planet() { if (trailLines[suns.length]) trailLines[suns.length].pts = []; }
+$("btnTrails").onclick = e => {
+  showTrails = !showTrails;
+  trailLines.forEach(t => t.line.visible = showTrails);
+  e.target.textContent = "轨迹：" + (showTrails ? "开" : "关");
+};
+// 开始界面
+document.querySelectorAll("#modeSeg button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#modeSeg button").forEach(x => x.classList.toggle("on", x === b));
+  MODE = b.dataset.mode;
+});
+$("btnEnter").onclick = () => {
+  $("start").style.display = "none";
+  started = true;
+  $("preset").value = $("startPreset").value;
+  $("modeLine").textContent = MODE === "civ" ? "文明模式 · 剧情 / 科技 / 抉择" : "沙盒模式 · 自由造物，无人会死";
+  init($("startPreset").value, false);
+  unlock("first");
+  if (MODE === "sandbox") toast("🌌 沙盒模式", "改引力、加太阳、召唤彗星——这个宇宙归你了。");
+  else toast("🌅 第 141 号文明", "先活过第一个混沌纪元。稳定纪元里攒科研点，点亮精确历法。");
+};
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  if (composer) composer.setSize(innerWidth, innerHeight);
+});
+renderAchs(); renderTechs();
+animate();
+window.__tbBooted = true;
+</script>
+<script>
+setTimeout(() => {
+  if (!window.__tbBooted) {
+    var el = document.getElementById("loadTip");
+    if (el) el.textContent = "3D 引擎加载失败：本页需要联网加载 Three.js（CDN）。请检查网络后刷新。";
+  }
+}, 9000);
 </script>
 </body>
 </html>

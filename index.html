@@ -122,7 +122,7 @@
   <div><span class="lbl">太阳（地平线）</span><span class="big" id="ckSuns">—</span></div>
   <div id="dangerChip" style="display:none;background:#5a1610;border:1px solid #a33;color:#ffb3ab;border-radius:999px;padding:5px 12px;font-size:12.5px;"></div>
   <button id="btnPause">⏸ 暂停</button>
-  <label style="font-size:12px;color:#9a9aa5;">速度 <input id="speed" type="range" min="0.1" max="20" step="0.1" value="1" style="width:110px;vertical-align:middle;"> <span id="speedVal">1×</span></label>
+  <label style="font-size:12px;color:#9a9aa5;">速度 <input id="speed" type="range" min="1" max="400" step="1" value="1" style="width:110px;vertical-align:middle;"> <span id="speedVal">1 天/秒</span></label>
   <button id="btnCamFree">🌄 环视世界</button>
   <button id="btnCamPlanet">🏘 村庄近景</button>
   <button id="btnCamSurface">👁 站在地面</button>
@@ -953,7 +953,7 @@ function worldEnergy() {
   return ke + pe;
 }
 function refreshPanel() {
-  $("ckYear").textContent = (simTime / YEAR).toFixed(1) + " 年";
+  { const _yrs = simTime / YEAR; $("ckYear").textContent = Math.floor(_yrs) + " 年 " + Math.floor((_yrs % 1) * 365) + " 天"; }
   const eraEl = $("ckEra"); eraEl.textContent = era; eraEl.style.color = era === "稳定纪元" ? "#6fe08a" : era === "混沌纪元" ? "#ff7a6b" : "#eee";
   $("ckTemp").textContent = tempC.toFixed(0) + " °C";
   $("ckTemp").style.color = tempC > 60 ? "#ff7a6b" : tempC < -40 ? "#9fd0ff" : "#eee";
@@ -964,7 +964,7 @@ function refreshPanel() {
     $("stPop").textContent = civ.state === "dehydrated" ? Math.round(civ.storedPop) + "（纤维）" : Math.round(civ.pop);
     $("stCivState").textContent = { active: "正常生活", dehydrated: "已脱水", gone: "已毁灭" }[civ.state];
     $("lvlBar").style.width = (civ.state === "active" ? civ.progress : 0) + "%";
-    $("stSurvive").textContent = civ.state === "gone" ? "—" : Math.floor(civAge) + " 年";
+    $("stSurvive").textContent = civ.state === "gone" ? "—" : (civAge >= 2 ? Math.floor(civAge) + " 年" : Math.floor(civAge * 365) + " 天");
     $("stFoodKnow").textContent = `${Math.floor(civ.food || 0)} · ${Math.floor(civ.knowledge || 0)}`;
   }
   $("stSci").textContent = Math.floor(science);
@@ -1691,7 +1691,7 @@ function animate() {
   if (frameNo % 600 === 0 && started) saveMeta();
   if (started && running && !modalOpen && !roundOver) {
     const speed = parseFloat($("speed").value);
-    simAcc += realDt * 3.36 * speed;                       // 固定步长累加器：1× ≈ 0.34 年/秒，与刷新率无关
+    simAcc += realDt * speed * (10 / 365.25);              // v10：速度单位=天/秒，默认 1 天/秒，固定步长累加器与刷新率无关
     let steps = Math.floor(simAcc / 0.004); simAcc -= steps * 0.004;
     steps = Math.min(steps, 500);
     for (let i = 0; i < steps; i++) step(0.004);
@@ -1748,7 +1748,7 @@ addEventListener("keydown", e => {
     e.preventDefault(); $("btnPause").click();
   }
 });
-$("speed").oninput = e => $("speedVal").textContent = e.target.value + "×";
+$("speed").oninput = e => $("speedVal").textContent = e.target.value + " 天/秒";
 $("btnCamFree").onclick = () => { worldMode = "orbit"; toast("🌄 环视世界", "高空环视这片大陆：山川、河流、森林和那座小小的村庄。"); };
 $("btnCamPlanet").onclick = () => { worldMode = "village"; toast("🏘 村庄近景", "低空绕着村庄飞。看他们过日子。"); };
 $("btnCamSurface").onclick = () => { worldMode = "surface"; toast("👁 站在地面", "你正站在村庄边的草地上。看，太阳升起来了——也许不止一颗。"); };

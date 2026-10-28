@@ -1713,7 +1713,7 @@ function animate() {
   requestAnimationFrame(animate);
   frameNo++;
   const nowMs = performance.now();
-  const realDt = Math.min(0.1, (nowMs - lastFrameMs) / 1000); lastFrameMs = nowMs;
+  const realDt = Math.min(0.5, (nowMs - lastFrameMs) / 1000); lastFrameMs = nowMs;   // v11.1：钳制放宽到 0.5s，低帧率设备上时钟不再慢于标称速度
   if (realDt > 0.0005) fpsEMA = fpsEMA * 0.95 + (1 / realDt) * 0.05;
   if (frameNo % 240 === 0 && started && fpsEMA < 38 && prScale > 1.0) { prScale = Math.max(1.0, prScale - 0.25); civRen.setPixelRatio(prScale); }
   if (frameNo % 600 === 0 && started) saveMeta();
@@ -1721,7 +1721,7 @@ function animate() {
     const speed = parseFloat($("speed").value);
     simAcc += realDt * speed * (10 / 365.25);              // v10：速度单位=天/秒，默认 1 天/秒，固定步长累加器与刷新率无关
     let steps = Math.floor(simAcc / 0.004); simAcc -= steps * 0.004;
-    steps = Math.min(steps, 500);
+    steps = Math.min(steps, 4000);
     for (let i = 0; i < steps; i++) step(0.004);
     // 气候纹理：跨带需持续 1.5 秒才重绘，防阈值附近反复横跳
     const climate = tempC < -25 ? "极寒" : tempC < 5 ? "寒冷" : tempC <= 45 ? "温和" : "炽热";

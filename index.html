@@ -118,6 +118,7 @@
   <div><span class="lbl">纪元</span><span class="big" id="ckEra">—</span></div>
   <div><span class="lbl">地表温度</span><span class="big" id="ckTemp">—</span></div>
   <div><span class="lbl">太阳（地平线）</span><span class="big" id="ckSuns">—</span></div>
+  <div id="dangerChip" style="display:none;background:#5a1610;border:1px solid #a33;color:#ffb3ab;border-radius:999px;padding:5px 12px;font-size:12.5px;"></div>
   <button id="btnPause">⏸ 暂停</button>
   <label style="font-size:12px;color:#9a9aa5;">速度 <input id="speed" type="range" min="0.1" max="20" step="0.1" value="1" style="width:110px;vertical-align:middle;"> <span id="speedVal">1×</span></label>
   <button id="btnCamFree">🌄 环视世界</button>
@@ -228,6 +229,7 @@
     </select>
   </div>
   <div class="row"><button id="btnEnter" class="gold" style="font-size:16px;padding:11px 34px;">进入三体世界</button></div>
+  <p class="sub" id="saveLine"></p>
   <p class="sub" style="font-size:12px;">拖拽旋转视角 · 滚轮缩放 · 地表视角可以站在行星上看日出<br>给岁月以文明，而不是给文明以岁月。</p>
   <p id="loadTip"></p>
 </div></div>
@@ -382,12 +384,13 @@ const achDone = {};
 function unlock(id) {
   if (achDone[id]) return; achDone[id] = true;
   const a = ACHS.find(x => x[0] === id);
-  if (a) { toast("🏆 成就解锁：" + a[1], a[2]); renderAchs(); }
+  if (a) { toast("🏆 成就解锁：" + a[1], a[2]); renderAchs(); saveMeta(); }
 }
 
 // ================= 文明 =================
 function newCiv() {
-  const no = civ ? civ.no + 1 + Math.floor(Math.random() * 2) : 141;
+  const no = civ ? civ.no + 1 + Math.floor(Math.random() * 2) : (metaLastCivNo ? metaLastCivNo + 1 + Math.floor(Math.random() * 2) : 141);
+  metaLastCivNo = no; saveMeta();
   civ = { no, level: 0, progress: 0, pop: 120, state: "active", storedPop: 0, shieldsUsed: 0, bornAt: simTime };
   civAge = 0; heatTime = coldTime = tripleTime = 0; shieldBonus = 0;
   log(`第 ${no} 号文明诞生，程度为${LEVELS[0]}。${CHAPTERS[0]}`, "story");
@@ -415,7 +418,7 @@ function endCiv(cause) {
     li.textContent = `第 ${civ.no} 号文明 · 存活 ${Math.max(1, Math.round(civAge))} 年 · 死于${cause} · 人口峰值 ${Math.round(civ.peakPop || civ.pop)} 万 · 止步于${LEVELS[civ.level]}`;
     ep.prepend(li);
   }
-  deadCount++; if (deadCount >= 10) unlock("dead10");
+  deadCount++; saveMeta(); if (deadCount >= 10) unlock("dead10");
   bestLevel = Math.max(bestLevel, civ.level);
   civ.state = "gone"; updateCivButtons();
   setTimeout(() => { if (!roundOver) newCiv(); }, 2600);
@@ -531,11 +534,12 @@ function civStep(dt) {
       }
     }
   } else if (era === "混沌纪元") {
-    if (tempC > 55 || tempC < -35) civ.pop = Math.max(0, civ.pop * (1 - 0.30 * dy));
-    else civ.pop = Math.max(0, civ.pop * (1 - 0.03 * dy));
+    const youth = civAge < 3 ? 0.55 : 1;   // 幼年宽限：游猎小部落死得慢
+    if (tempC > 55 || tempC < -35) civ.pop = Math.max(0, civ.pop * (1 - 0.30 * youth * dy));
+    else civ.pop = Math.max(0, civ.pop * (1 - 0.03 * youth * dy));
     if (civ.pop < 1) { endCiv("混沌纪元的严酷气候"); return; }
   }
-  const lf = lethalFactor();
+  const lf = lethalFactor() * (civAge < 3 ? 1.6 : 1);   // 幼年宽限：致命计时阈值放宽
   if (tripleTime > 0.04 * lf) { civDying("三日凌空"); return; }
   if (heatTime > 0.30 * lf) { civDying("酷热"); return; }
   if (coldTime > 0.30 * lf) { civDying("严寒长夜"); return; }
@@ -906,6 +910,14 @@ function refreshPanel() {
   $("worldKv").innerHTML =
     suns.map((s, i) => `${s.name}：距行星 <b>${dists[i] ? dists[i].toFixed(2) : "—"}</b> · 质量 <b>${s.m.toFixed(2)}</b>`).join("<br>") +
     `<br>辐射通量 <b>${flux.toFixed(2)}</b>（地球≈1）<br>系统总能量 <b>${worldEnergy().toFixed(2)}</b><br>G = <b>${G.toFixed(2)}</b> · 引力幂次 <b>${GEXP.toFixed(2)}</b> · 太阳数量 <b>${suns.length}</b>`;
+  const lfNow = lethalFactor() * (civ && civAge < 3 ? 1.6 : 1);
+  let worst = null;
+  if (civ && civ.state === "active") for (const [nm, v, th] of [["酷热", heatTime, 0.30], ["严寒", coldTime, 0.30], ["三日凌空", tripleTime, 0.04]]) {
+    const r = v / (th * lfNow); if (!worst || r > worst.r) worst = { nm, r };
+  }
+  const chip = $("dangerChip");
+  if (worst && worst.r > 0.35) { chip.style.display = "block"; chip.textContent = `⚠ ${worst.nm}逼近 ${Math.min(99, Math.round(worst.r * 100))}% — 考虑脱水`; }
+  else chip.style.display = "none";
   renderQuests();
 }
 function renderTechs() {
@@ -1514,7 +1526,7 @@ function renderQuests() {
   }
 }
 function v6Tick(dt, t) {
-  updateFarms(); updateAnimals(dt);
+  updateFarms(); updateAnimals(dt); updateBoats(t);
   observatory.visible = techLv.calendar >= 1;
   bunkerDoor.visible = techLv.bunker >= 1;
   ecoDome.visible = techLv.dome >= 1;
@@ -1522,6 +1534,50 @@ function v6Tick(dt, t) {
     fireLight.intensity = 30 + Math.sin(t * 13) * 6;
     fireLight.position.set((Math.random()-0.5) * 6, PLATEAU_Y + 1.6, (Math.random()-0.5) * 6);
   }
+}
+
+// ================= v8：存档记忆 / 小船 =================
+function saveMeta() {
+  try { localStorage.setItem("tb-meta-v1", JSON.stringify({ achDone, questFlags, deadCount, bestLevel, techLv, won, lastCivNo: metaLastCivNo })); } catch (e) {}
+}
+function loadMeta() {
+  try {
+    const raw = localStorage.getItem("tb-meta-v1"); if (!raw) return;
+    const m = JSON.parse(raw);
+    Object.assign(achDone, m.achDone || {}); Object.assign(questFlags, m.questFlags || {});
+    Object.assign(techLv, m.techLv || {});
+    deadCount = m.deadCount || 0; bestLevel = m.bestLevel || 0;
+    won = !!m.won; metaLastCivNo = m.lastCivNo || 0; metaLoaded = true;
+    const sl = $("saveLine");
+    if (sl && metaLastCivNo) sl.textContent = `📜 史册：已历 ${deadCount} 次文明毁灭 · 最高成就 ${LEVELS[bestLevel]} · 上一号文明 第 ${metaLastCivNo} 号`;
+  } catch (e) {}
+}
+const boats = [];
+{
+  const spots = [];
+  for (let x = -120; x <= 120 && spots.length < 2; x += 6) for (let z = -120; z <= 120 && spots.length < 2; z += 6) {
+    const d = Math.hypot(x, z); if (d < 30 || d > 110) continue;
+    if (terrainH(x, z) < 0.1) spots.push([x, z]);
+  }
+  const hullM = new THREE.MeshStandardMaterial({ color: 0x7a4a26, roughness: 0.9 });
+  const sailM = new THREE.MeshStandardMaterial({ color: 0xe8e0cc, roughness: 0.85, side: THREE.DoubleSide });
+  spots.forEach(([x, z], i) => {
+    const g = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.5, 0.9), hullM); hull.position.y = 0.25; hull.castShadow = true;
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 5), hullM); mast.position.y = 1.4;
+    const sail = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), sailM); sail.position.set(0.1, 1.5, 0); sail.rotation.y = 0.4;
+    g.add(hull, mast, sail); g.position.set(x, WATER_Y, z); civScene.add(g);
+    boats.push({ g, cx: x, cz: z, ph: i * 2.1, r: 4 + i * 2 });
+  });
+}
+function updateBoats(t) {
+  const ok = civ && civ.level >= 2 && civ.state === "active" && tempC > -10 && tempC < 45;
+  boats.forEach(b => {
+    b.g.visible = !!ok; if (!ok) return;
+    const a = t * 0.05 + b.ph;
+    b.g.position.set(b.cx + Math.cos(a) * b.r, WATER_Y + 0.06 + Math.sin(t * 0.9 + b.ph) * 0.07, b.cz + Math.sin(a) * b.r);
+    b.g.rotation.y = -a; b.g.rotation.z = Math.sin(t * 0.7 + b.ph) * 0.05;
+  });
 }
 
 
@@ -1532,6 +1588,7 @@ let lastFrameMs = performance.now(), simAcc = 0;
 let season = 0.5, seasonOffset = 0, seasonPhase = 0, chaosSurvived = 0, dehydratedOnce = false;
 let pendingPaintBand = "", pendingPaintSince = 0;
 let formationUntil = 0, burnUntil = 0;
+let metaLastCivNo = 0, metaLoaded = false, fpsEMA = 60, prScale = Math.min(devicePixelRatio, 1.75);
 const questFlags = { chaos: false, cycle: false, calendar: false, bronze: false, rewarded: false };
 function step(dt) {
   let S = packState(); S = rk4(S, dt); unpackState(S);
@@ -1545,6 +1602,9 @@ function animate() {
   frameNo++;
   const nowMs = performance.now();
   const realDt = Math.min(0.1, (nowMs - lastFrameMs) / 1000); lastFrameMs = nowMs;
+  if (realDt > 0.0005) fpsEMA = fpsEMA * 0.95 + (1 / realDt) * 0.05;
+  if (frameNo % 240 === 0 && started && fpsEMA < 38 && prScale > 1.0) { prScale = Math.max(1.0, prScale - 0.25); civRen.setPixelRatio(prScale); }
+  if (frameNo % 600 === 0 && started) saveMeta();
   if (started && running && !modalOpen && !roundOver) {
     const speed = parseFloat($("speed").value);
     simAcc += realDt * 3.36 * speed;                       // 固定步长累加器：1× ≈ 0.34 年/秒，与刷新率无关
@@ -1586,7 +1646,7 @@ function init(presetName, keepCiv) {
   simTime = 0; tempC = 8; rot = 0; era = "未知"; eraSamples = []; lastEraSample = -9; eraSince = 0; stableStreak = 0;
   heatTime = coldTime = tripleTime = 0; roundOver = false; running = true; forecastAt = -99;
   $("btnPause").textContent = "⏸ 暂停";
-  if (!keepCiv) { deadCount = 0; bestLevel = 0; won = false; $("log").innerHTML = ""; civ = null; }
+  if (!keepCiv) { $("log").innerHTML = ""; const ep = $("epitaphs"); if (ep) ep.innerHTML = ""; civ = null; }
   buildSunMeshes(); buildTrails();
   planetClimate = "";
   if (MODE === "civ") newCiv(); else { civ = { no: 0, level: 0, progress: 0, pop: 0, state: "active", storedPop: 0, shieldsUsed: 0 }; }
@@ -1688,6 +1748,7 @@ addEventListener("resize", () => {
   civCam.aspect = innerWidth / innerHeight; civCam.updateProjectionMatrix();
   civRen.setSize(innerWidth, innerHeight, false);
 });
+loadMeta();
 renderAchs(); renderTechs();
 animate();
 window.__tbBooted = true;

@@ -115,7 +115,7 @@
   <div><span class="lbl">地表温度</span><span class="big" id="ckTemp">—</span></div>
   <div><span class="lbl">太阳（地平线）</span><span class="big" id="ckSuns">—</span></div>
   <button id="btnPause">⏸ 暂停</button>
-  <label style="font-size:12px;color:#9a9aa5;">速度 <input id="speed" type="range" min="0.25" max="20" step="0.25" value="1" style="width:110px;vertical-align:middle;"> <span id="speedVal">1×</span></label>
+  <label style="font-size:12px;color:#9a9aa5;">速度 <input id="speed" type="range" min="0.1" max="20" step="0.1" value="1" style="width:110px;vertical-align:middle;"> <span id="speedVal">1×</span></label>
   <button id="btnCamFree">🌄 环视世界</button>
   <button id="btnCamPlanet">🏘 村庄近景</button>
   <button id="btnCamSurface">👁 站在地面</button>
@@ -789,7 +789,7 @@ let camMode = "free", frameNo = 0, surfacePan = 0;
 function applyCamera(c) {
   const mode = camMode === "planet" ? "planet" : "free";
   if (mode === "free") {
-    controls.enabled = true; controls.autoRotate = true; controls.autoRotateSpeed = 0.5;
+    controls.enabled = true; controls.autoRotate = true; controls.autoRotateSpeed = 0.3;
     controls.target.lerp(new THREE.Vector3(c[0], c[1], c[2]), 0.04);
   } else if (mode === "planet") {
     controls.autoRotate = false;
@@ -909,7 +909,7 @@ function renderAchs() {
 // ================= 文明实景窗（小人、村落、天气、脱水） =================
 let shakeT = 0, flashT = 0;
 const civRen = new THREE.WebGLRenderer({ canvas: $("worldCanvas"), antialias: true });
-civRen.setPixelRatio(Math.min(devicePixelRatio, 2));
+civRen.setPixelRatio(Math.min(devicePixelRatio, 1.75));
 civRen.setSize(innerWidth, innerHeight, false);
 const civScene = new THREE.Scene();
 civScene.background = new THREE.Color(0x0a1224);
@@ -956,7 +956,15 @@ function buildVillage() {
     const stones = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.22, 6, 10), matDark); stones.rotation.x = Math.PI/2; stones.position.y = 0.15; village.add(stones);
   } else {
     const n = Math.min(4 + lv, 9);
-    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + 0.3; house(Math.cos(a) * (8 + (i % 3) * 2.4), Math.sin(a) * (8 + (i % 3) * 2.4), 0.9 + (i % 3) * 0.14, ruins); }
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2 + 0.3, r = 8 + (i % 3) * 2.4;
+      house(Math.cos(a) * r, Math.sin(a) * r, 0.9 + (i % 3) * 0.14, ruins);
+      if (lv >= 4 && !ruins) { // 电气时代起，夜里亮起窗灯
+        const win = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.08), matGlowWin);
+        win.position.set(Math.cos(a) * (r - 1.45), 1.15, Math.sin(a) * (r - 1.45));
+        win.rotation.y = -a + Math.PI / 2; village.add(win);
+      }
+    }
   }
   if (lv >= 3 && !ruins) { // 蒸汽：工厂 + 烟囱
     box(5, 3, 4, matWall, -11, 1.5, -7); const ch = box(0.9, 5.5, 0.9, matRoof, -9.4, 4.4, -7); chimneyPos = [-9.4, 7.4, -7];
@@ -1033,7 +1041,7 @@ function renderCivView() {
   civScene.background.lerp(want, 0.04);
   if (civScene.fog) civScene.fog.color.copy(civScene.background);
   civLight.intensity = 0.25 + Math.min(1.6, flux * 0.8);
-  civLight.position.set(Math.cos(t * 0.02) * 20, 26, Math.sin(t * 0.02) * 20);
+  civLight.position.set(Math.cos(t * 0.006) * 20, 26, Math.sin(t * 0.006) * 20);
   const gTarget = new THREE.Color(tempC < -25 ? 0xdfe9f2 : tempC > 48 ? 0x5c3a22 : tempC < 2 ? 0x8fa88a : 0x4a7c43);
   groundMat.color.lerp(gTarget, 0.03);
   // 太阳（真实方位/高度）
@@ -1242,6 +1250,8 @@ const starsMat = new THREE.PointsMaterial({ color: 0xcdd8f8, size: 1.6, sizeAtte
   civScene.add(new THREE.Points(g, starsMat));
 }
 civScene.add(new THREE.HemisphereLight(0xbcd6ff, 0x3a4a2e, 0.5));
+const fireLight = new THREE.PointLight(0xff8a3c, 0, 15, 1.6);
+fireLight.position.set(0, PLATEAU_Y + 1.1, 0); civScene.add(fireLight);
 civRen.shadowMap.enabled = true; civRen.shadowMap.type = THREE.PCFSoftShadowMap;
 civLight.castShadow = true;
 civLight.shadow.mapSize.set(1024, 1024);
@@ -1267,7 +1277,7 @@ for (let i = 0; i < 6; i++) {
 // 世界相机
 let worldMode = "orbit", lastWorldMode = "";
 const worldControls = new OrbitControls(civCam, civRen.domElement);
-worldControls.enableDamping = true; worldControls.autoRotate = true; worldControls.autoRotateSpeed = 0.4;
+worldControls.enableDamping = true; worldControls.autoRotate = true; worldControls.autoRotateSpeed = 0.22;
 worldControls.maxPolarAngle = 1.48; worldControls.minDistance = 6; worldControls.maxDistance = 180;
 worldControls.target.set(0, PLATEAU_Y + 1, 0);
 function applyWorldCamera(dt, t) {
@@ -1277,7 +1287,7 @@ function applyWorldCamera(dt, t) {
   } else {
     worldControls.enabled = false;
     if (worldMode === "village") {
-      const a = t * 0.07;
+      const a = t * 0.045;
       civCam.position.set(Math.cos(a) * 25, PLATEAU_Y + 8.5, Math.sin(a) * 25);
       civCam.lookAt(0, PLATEAU_Y + 1.2, 0);
     } else {
@@ -1291,6 +1301,8 @@ function applyWorldCamera(dt, t) {
 let lastBand = "";
 function worldTick(dt, t) {
   clouds.forEach((c, i) => { c.position.x += dt * (0.7 + (i % 4) * 0.22); if (c.position.x > 260) c.position.x = -260; });
+  const fireTarget = firePos && !(civ && civ.state === "gone") ? (visibleSuns === 0 ? 26 + Math.sin(t * 11) * 5 + Math.sin(t * 23) * 3 : 6) : 0;
+  fireLight.intensity += (fireTarget - fireLight.intensity) * 0.2;
   water.position.y = WATER_Y + Math.sin(t * 0.8) * 0.03;
   starsMat.opacity += (((visibleSuns === 0) ? 0.95 : 0.13) - starsMat.opacity) * 0.03;
   const birdOK = era === "稳定纪元" && tempC > 2 && tempC < 34 && visibleSuns > 0 && civ && civ.state === "active";
@@ -1314,7 +1326,7 @@ paintTerrain("mild");
 
 
 // ================= 主循环 =================
-let running = true, started = false;
+let running = true, started = false, pendingClimate = "", pendingClimateAt = 0;
 function step(dt) {
   let S = packState(); S = rk4(S, dt); unpackState(S);
   simTime += dt;
@@ -1327,22 +1339,25 @@ function animate() {
   frameNo++;
   if (started && running && !modalOpen && !roundOver) {
     const speed = parseFloat($("speed").value);
-    const steps = Math.min(1400, Math.round(55 * speed));
+    const steps = Math.min(900, Math.round(14 * speed));   // 1× ≈ 0.34 年/秒，从容看清纪元变化
     for (let i = 0; i < steps; i++) step(0.004);
-    // 气候纹理：跨气候带时重绘行星表面
+    // 气候纹理：跨带需持续 1.5 秒才重绘，防阈值附近反复横跳
     const climate = tempC < -25 ? "极寒" : tempC < 5 ? "寒冷" : tempC <= 45 ? "温和" : "炽热";
     if (climate !== planetClimate) {
-      planetClimate = climate;
-      const old = planetMesh.material.map;
-      planetMesh.material.map = planetTexture(); planetMesh.material.needsUpdate = true;
-      if (old) old.dispose();
+      if (climate !== pendingClimate) { pendingClimate = climate; pendingClimateAt = performance.now(); }
+      else if (performance.now() - pendingClimateAt > 1500) {
+        planetClimate = climate;
+        const old = planetMesh.material.map;
+        planetMesh.material.map = planetTexture(); planetMesh.material.needsUpdate = true;
+        if (old) old.dispose();
+      }
     }
   }
   if (started) {
     const c = syncMeshes(); applyCamera(c);
     renderCivView();
-    if (frameNo % 6 === 0) { refreshPanel(); drawSky2d(); }
-    if (frameNo % 30 === 0) drawForecast();
+    if (frameNo % 12 === 0) { refreshPanel(); drawSky2d(); }
+    if (frameNo % 60 === 0) drawForecast();
   }
   controls.update();
   if (composer) composer.render(); else renderer.render(scene, camera);
@@ -1374,6 +1389,11 @@ document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => {
   document.querySelectorAll("[data-page]").forEach(p => p.hidden = p.dataset.page !== b.dataset.tab);
 });
 $("btnPause").onclick = () => { running = !running; $("btnPause").textContent = running ? "⏸ 暂停" : "▶ 继续"; };
+addEventListener("keydown", e => {
+  if (e.code === "Space" && started && !modalOpen && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) {
+    e.preventDefault(); $("btnPause").click();
+  }
+});
 $("speed").oninput = e => $("speedVal").textContent = e.target.value + "×";
 $("btnCamFree").onclick = () => { worldMode = "orbit"; toast("🌄 环视世界", "高空环视这片大陆：山川、河流、森林和那座小小的村庄。"); };
 $("btnCamPlanet").onclick = () => { worldMode = "village"; toast("🏘 村庄近景", "低空绕着村庄飞。看他们过日子。"); };

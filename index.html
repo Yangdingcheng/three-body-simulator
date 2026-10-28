@@ -470,8 +470,13 @@ function environment(dt) {
   });
   visibleSuns = sunElev.filter(e => e > 0).length;
   const cc = com(), ph = Math.atan2(planet.p[2] - cc[2], planet.p[0] - cc[0]);
-  season = (Math.sin(ph + 1.3) + 1) / 2;                    // 轨道相位 → 季节（0 隆冬 ~ 1 盛夏）
-  seasonOffset = (season - 0.5) * 9;
+  // 季节是慢变量：向轨道相位目标限速靠拢（最快 0.5 弧度/游戏年），混沌甩鞭时季节也不发疯
+  const targetPhase = ph + 1.3;
+  let dph = ((targetPhase - seasonPhase + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  const maxDph = 0.5 * (dt / YEAR);
+  seasonPhase += Math.max(-maxDph, Math.min(maxDph, dph));
+  season = (Math.sin(seasonPhase) + 1) / 2;                // 0 隆冬 ~ 1 盛夏
+  seasonOffset = Math.sin(seasonPhase) * 4.5;
   const tEq = 283 * Math.pow(flux, 0.25) - 273.15 + seasonOffset * (visibleSuns > 0 ? 1 : 0.35);
   tempC += (tEq - tempC) * (1 - Math.exp(-dt / 0.9));
   rot += 2 * Math.PI * dt / DAY;
@@ -796,7 +801,7 @@ function syncMeshes() {
     const m = sunMeshes[i]; if (!m) return;
     m.grp.position.set(s.p[0], s.p[1], s.p[2]);
     sunLights[i].position.copy(m.grp.position);
-    const pulse = 1 + Math.sin(simTime * 3 + i * 2) * 0.03;
+    const pulse = 1 + Math.sin(frameNo * 0.03 + i * 2) * 0.03;
     m.grp.scale.setScalar((0.75 + s.m * 0.35) * pulse);
     if (frameNo % 2 === 0) pushTrail(i, s.p);
   });
@@ -1127,7 +1132,7 @@ function renderCivView() {
   weather.visible = wMode !== "none";
   if (weather.visible) {
     weather.material.color.setHex(wMode === "snow" ? 0xffffff : wMode === "rain" ? 0x9fc8ff : 0xff9a3c);
-    const fall = wMode === "snow" ? 2.2 : wMode === "rain" ? 16 : -1.6;
+    const fall = wMode === "snow" ? 1.5 : wMode === "rain" ? 13 : -1.2;
     for (let i = 0; i < 420; i++) {
       weatherPos.array[3*i+1] -= fall * dt * (0.6 + (i % 7) / 10);
       weatherPos.array[3*i] += Math.sin(t * 2 + i) * dt * 0.7;
@@ -1316,7 +1321,7 @@ for (let i = 0; i < 6; i++) {
 // 世界相机
 let worldMode = "orbit", lastWorldMode = "";
 const worldControls = new OrbitControls(civCam, civRen.domElement);
-worldControls.enableDamping = true; worldControls.autoRotate = true; worldControls.autoRotateSpeed = 0.22;
+worldControls.enableDamping = true; worldControls.autoRotate = true; worldControls.autoRotateSpeed = 0.12;
 worldControls.maxPolarAngle = 1.48; worldControls.minDistance = 6; worldControls.maxDistance = 180;
 worldControls.target.set(0, PLATEAU_Y + 1, 0);
 function applyWorldCamera(dt, t) {
@@ -1326,7 +1331,7 @@ function applyWorldCamera(dt, t) {
   } else {
     worldControls.enabled = false;
     if (worldMode === "village") {
-      const a = t * 0.045;
+      const a = t * 0.028;
       civCam.position.set(Math.cos(a) * 25, PLATEAU_Y + 8.5, Math.sin(a) * 25);
       civCam.lookAt(0, PLATEAU_Y + 1.2, 0);
     } else {
@@ -1339,7 +1344,7 @@ function applyWorldCamera(dt, t) {
 }
 let lastBand = "";
 function worldTick(dt, t) {
-  clouds.forEach((c, i) => { c.position.x += dt * (0.7 + (i % 4) * 0.22); if (c.position.x > 260) c.position.x = -260; });
+  clouds.forEach((c, i) => { c.position.x += dt * (0.38 + (i % 4) * 0.12); if (c.position.x > 260) c.position.x = -260; });
   const fireTarget = firePos && !(civ && civ.state === "gone") ? (visibleSuns === 0 ? 26 + Math.sin(t * 11) * 5 + Math.sin(t * 23) * 3 : 6) : 0;
   fireLight.intensity += (fireTarget - fireLight.intensity) * 0.2;
   water.position.y = WATER_Y + Math.sin(t * 0.8) * 0.03;
@@ -1347,7 +1352,7 @@ function worldTick(dt, t) {
   const birdOK = era === "稳定纪元" && tempC > 2 && tempC < 34 && visibleSuns > 0 && civ && civ.state === "active";
   birds.forEach(b => {
     b.g.visible = !!birdOK; if (!birdOK) return;
-    b.ang += b.spd * dt * 3;
+    b.ang += b.spd * dt * 2;
     b.g.position.set(Math.cos(b.ang) * b.r, PLATEAU_Y + b.h + Math.sin(t + b.ph) * 1.2, Math.sin(b.ang) * b.r);
     b.g.rotation.y = -b.ang;
     const flap = Math.sin(t * 9 + b.ph) * 0.55;
@@ -1355,7 +1360,9 @@ function worldTick(dt, t) {
   });
   const band = tempC < -25 ? "frozen" : tempC < 2 ? "cold" : tempC > 60 ? "scorch" : tempC > 45 ? "hot" : "mild";
   const paintBand = (band === "mild" && season < 0.22) ? "cold" : (band === "cold" && season > 0.8) ? "mild" : band;
-  if (paintBand !== lastBand) {
+  // 重绘防抖：新色带持续 0.8 游戏年才真正重绘地貌，免得阈值附近反复横跳闪花眼
+  if (paintBand !== lastBand && paintBand !== pendingPaintBand) { pendingPaintBand = paintBand; pendingPaintSince = simTime; }
+  if (paintBand !== lastBand && paintBand === pendingPaintBand && simTime - pendingPaintSince > YEAR * 0.8) {
     lastBand = paintBand; paintTerrain(paintBand); tintTrees(paintBand);
     if (band === "frozen") { waterMat.color.setHex(0xcfe2ee); waterMat.opacity = 0.96; waterMat.roughness = 0.6; }
     else if (band === "scorch" || band === "hot") { waterMat.color.setHex(0x2a6d8a); waterMat.opacity = 0.8; waterMat.roughness = 0.2; }
@@ -1393,10 +1400,14 @@ function roleSpot(P, i, role) {
 // 农田
 const farmGroup = new THREE.Group(); village.add(farmGroup);
 const farmMats = [];
+const farmEdgeMat = new THREE.MeshStandardMaterial({ color: 0x4a3b28, roughness: 1 });
 farmPlots.forEach(([x, z], idx) => {
+  const edge = new THREE.Mesh(new THREE.PlaneGeometry(2.62, 2.62), farmEdgeMat);
+  edge.rotation.x = -Math.PI / 2; edge.position.set(x, 0.025, z); edge.receiveShadow = true;
+  farmGroup.add(edge);
   const m = new THREE.MeshStandardMaterial({ color: 0x6da34f, roughness: 1 });
   const p = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 2.3), m);
-  p.rotation.x = -Math.PI / 2; p.position.set(x, 0.04, z); p.receiveShadow = true;
+  p.rotation.x = -Math.PI / 2; p.position.set(x, 0.05, z); p.receiveShadow = true;
   farmGroup.add(p); farmMats.push(m);
 });
 const cropsGroup = new THREE.Group(); village.add(cropsGroup);
@@ -1518,7 +1529,8 @@ function v6Tick(dt, t) {
 // ================= 主循环 =================
 let running = true, started = false, pendingClimate = "", pendingClimateAt = 0;
 let lastFrameMs = performance.now(), simAcc = 0;
-let season = 0.5, seasonOffset = 0, chaosSurvived = 0, dehydratedOnce = false;
+let season = 0.5, seasonOffset = 0, seasonPhase = 0, chaosSurvived = 0, dehydratedOnce = false;
+let pendingPaintBand = "", pendingPaintSince = 0;
 let formationUntil = 0, burnUntil = 0;
 const questFlags = { chaos: false, cycle: false, calendar: false, bronze: false, rewarded: false };
 function step(dt) {
